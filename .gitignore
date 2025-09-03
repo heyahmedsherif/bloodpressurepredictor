@@ -11,6 +11,7 @@ __pycache__/
 # Claude information
 .claude
 0llm
+context_log.md
 
 # Distribution / packaging
 .Python
