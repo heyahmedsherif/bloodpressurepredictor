@@ -8,6 +8,10 @@ __pycache__/
 # C extensions
 *.so
 
+# Claude information
+.claude
+0llm
+
 # Distribution / packaging
 .Python
 build/
