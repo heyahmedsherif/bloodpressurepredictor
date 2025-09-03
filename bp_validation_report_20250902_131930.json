@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-09-02T13:19:30.299185",
+  "validation_type": "blood_pressure_model_validation",
+  "cross_validation_results": {
+    "random_forest": {
+      "systolic_mae": 10.238181124613748,
+      "systolic_std": 0.29211986211348895,
+      "diastolic_mae": 6.135032747001318,
+      "diastolic_std": 0.16680153655851987
+    },
+    "gradient_boost": {
+      "systolic_mae": 8.54972865435951,
+      "systolic_std": 0.26157245684512254,
+      "diastolic_mae": 5.348557285725866,
+      "diastolic_std": 0.15797462689915673
+    }
+  },
+  "clinical_scenarios": [
+    {
+      "name": "Healthy Young Adult",
+      "predicted_systolic": 90,
+      "predicted_diastolic": 64.4,
+      "systolic_in_range": false,
+      "diastolic_in_range": 

@@ -36,12 +36,54 @@ Beyond accuracy, we investigate robustness against different skin tones, establi
 
 ---
 
+## 📁 Project Structure
+
+```
+papagei-foundation-model/
+├── apps/                          # Applications and user interfaces
+│   ├── streamlit_app_robust.py    # Main Streamlit app (robust version)
+│   ├── streamlit_app.py           # Original Streamlit app
+│   ├── run_app.py                 # App validation and testing script
+│   └── README.md                  # Application documentation
+├── config/                        # Configuration files
+│   ├── requirements_streamlit.txt # Streamlit app dependencies
+│   └── README.md                  # Configuration documentation
+├── docs/                          # Project documentation
+│   ├── prd-cardiovascular-risk-predictor.md  # Product Requirements Document
+│   ├── context_log.md             # Development history and decisions
+│   └── README.md                  # Documentation index
+├── examples/                      # Example data and usage scripts
+│   ├── sample_ppg_data.py         # PPG data generator for testing
+│   ├── example_papagei.ipynb      # Jupyter notebook example
+│   └── README.md                  # Examples documentation
+├── models/                        # Model architectures
+│   ├── resnet.py                  # ResNet1D and ResNet1DMoE models
+│   ├── transformer.py             # Transformer models
+│   ├── cnn.py                     # CNN models
+│   └── efficientnet.py            # EfficientNet models
+├── linearprobing/                 # Feature extraction and evaluation
+│   ├── feature_extraction_papagei.py  # PaPaGei feature extraction
+│   ├── utils.py                   # Utility functions
+│   └── classification.py          # Classification tasks
+├── preprocessing/                 # Signal preprocessing modules
+│   ├── ppg.py                     # PPG-specific preprocessing
+│   └── flatline.py               # Flatline detection
+├── baselines/                     # Baseline model implementations
+│   ├── TFC/                       # Time-frequency consistency models
+│   └── BYOL/                      # Bootstrap Your Own Latent models
+├── weights/                       # Pre-trained model weights (download separately)
+├── data/                          # Data storage directory
+├── tests/                         # Test files
+└── scripts/                       # Utility scripts
+```
+
 ## 🛠️ How to Use PaPaGei
 
 PaPaGei offers versatility for developers and researchers:
 
 1.  **Out-of-the-Box Feature Extraction**: Use PaPaGei to extract transferable features for your machine learning tasks, replacing handcrafted features.
 2.  **PPG Encoder Integration**: Incorporate PaPaGei as a PPG encoder into larger frontier models (e.g., LLMs like [AnyMAL](https://arxiv.org/abs/2309.16058)).
+3.  **Cardiovascular Risk Prediction**: Use our Streamlit app for early cardiovascular event detection and risk assessment.
 
 ### 📦 Installation
 
@@ -160,6 +202,45 @@ Here’s a brief example of how to load the PaPaGei-S model and extract embeddin
     ```
 
 👉 For a comprehensive end-to-end example, including feature extraction and downstream task evaluation on the `ppg-bp` dataset, please refer to the Jupyter Notebook: [`example_papagei.ipynb`](https://github.com/Nokia-Bell-Labs/papagei-foundation-model/blob/main/example_papagei.ipynb).
+
+### 🏥 Cardiovascular Risk Predictor Application
+
+We've built a comprehensive Streamlit application that demonstrates PaPaGei's capabilities for cardiovascular health monitoring:
+
+#### Quick Start - Cardiovascular App
+1. **Setup Environment:**
+   ```bash
+   conda activate papagei_env  # or your bloodpressure environment
+   pip install -r config/requirements_streamlit.txt
+   ```
+
+2. **Run the Application:**
+   ```bash
+   streamlit run apps/streamlit_app_robust.py
+   ```
+
+3. **Generate Test Data:**
+   ```bash
+   python examples/sample_ppg_data.py --plot
+   ```
+
+#### Features
+- **Blood Pressure Prediction**: Estimates systolic/diastolic BP with confidence intervals
+- **Cardiovascular Risk Scoring**: Multi-factor risk assessment with early warning alerts
+- **Signal Processing Pipeline**: Real-time PPG preprocessing and segmentation
+- **Interactive Dashboard**: Research-grade visualizations and data export
+- **Robust Error Handling**: Comprehensive fallback mechanisms for reliability
+
+#### Application Architecture
+- **Frontend**: Streamlit web interface with Plotly visualizations
+- **Backend**: PaPaGei-S ResNet1D-MoE model for 512-dimensional embeddings
+- **Processing**: PPG preprocessing → Segmentation → Feature extraction → Prediction
+- **Performance**: <2 second processing for 10-second PPG segments
+
+#### Use Cases
+- **Research Studies**: Large-scale cardiovascular population analysis
+- **Clinical Validation**: Continuous monitoring during medical interventions
+- **Early Warning System**: Detection of cardiovascular events 24-48 hours in advance
 
 **Important Considerations:**
 * **Model Variability**: No single model excels across all tasks and datasets. We release the models that achieved the most wins in our evaluations.

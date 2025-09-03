@@ -213,8 +213,9 @@ def batch_load_signals(path, case, segments):
     return np.vstack(batch_signal)
 
 def load_model_without_module_prefix(model, checkpoint_path):
-    # Load the checkpoint
-    checkpoint = torch.load(checkpoint_path)
+    # Load the checkpoint (map to CPU if CUDA not available)
+    device = torch.device("cpu")  # Always load to CPU first
+    checkpoint = torch.load(checkpoint_path, map_location=device)
     
     # Create a new state_dict with the `module.` prefix removed
     new_state_dict = {}
