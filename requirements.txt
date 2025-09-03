@@ -1,5 +1,5 @@
 # Blood Pressure Predictor - Streamlit Cloud Deployment Requirements
-# Optimized for Python 3.13 and dependency compatibility
+# Optimized for Python 3.11 and dependency compatibility
 
 # Core ML and Scientific Computing
 torch>=2.0.0
