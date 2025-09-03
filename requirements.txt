@@ -1,26 +1,26 @@
 # Blood Pressure Predictor - Streamlit Cloud Deployment Requirements
 # Optimized for Python 3.11 and dependency compatibility
 
-# Core ML and Scientific Computing
-torch>=2.0.0
-torchvision>=0.15.0
+# Core dependencies with proven compatibility
+streamlit>=1.28.0
 numpy>=1.21.0,<2.0.0
 pandas>=1.3.0,<2.0.0
 scikit-learn>=1.0.0
-scipy>=1.9.0
 matplotlib>=3.5.0
 seaborn>=0.11.0
-joblib>=1.1.0
-
-# Streamlit and Visualization
-streamlit>=1.28.0
 plotly>=5.15.0
 
-# Signal Processing (compatible versions)
+# ML framework - using CPU-only version for Streamlit Cloud
+torch>=2.0.0,<3.0.0
+torchvision>=0.15.0,<1.0.0
+
+# Signal processing
+scipy>=1.9.0
 peakutils>=1.3.0
 
 # Utilities
 tqdm>=4.64.0
+joblib>=1.1.0
 dotmap>=1.3.0
 
 # Optional dependencies for extended functionality
