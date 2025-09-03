@@ -494,10 +494,10 @@ def main():
     
     with col2:
         st.subheader("📈 PPG Signal Analysis")
-        st.caption("*Upload PPG signal or use simulated data*")
+        st.caption("*Upload PPG signal or generate expected PPG based on your demographics*")
         
         ppg_source = st.radio("PPG Data Source:", 
-                             ["Simulated PPG", "Upload PPG File"])
+                             ["Generate Expected PPG", "Upload PPG File"])
         
         # Initialize PPG features in session state
         if 'ppg_features' not in st.session_state:
@@ -531,10 +531,10 @@ def main():
                 except Exception as e:
                     st.error(f"PPG analysis failed: {e}")
                     
-        else:  # Simulated PPG
-            st.info("👆 Click the button below to generate simulated PPG analysis")
-            if st.button("🔄 Generate Simulated PPG Analysis", type="secondary"):
-                # Simulate realistic PPG analysis
+        else:  # Generate Expected PPG
+            st.info("👇 Generate your expected PPG pattern based on your demographics")
+            if st.button("🧬 Generate Expected PPG Analysis", type="secondary"):
+                # Generate expected PPG based on user demographics
                 base_hr = 70 + (age - 45) * 0.2 + gender_male * 3
                 ppg_features = {
                     'heart_rate_ppg': np.clip(base_hr + np.random.normal(0, 8), 50, 110),
@@ -542,7 +542,7 @@ def main():
                     'pulse_pressure_estimate': np.clip(40 + bmi - 25 + np.random.normal(0, 5), 25, 70)
                 }
                 
-                # Add simulated PaPaGei embeddings
+                # Generate expected PaPaGei embeddings based on demographics
                 for i in range(20):
                     base_val = np.random.normal(0, 1)
                     if i < 5:  # Age-related features
@@ -554,12 +554,77 @@ def main():
                     
                     ppg_features[f'papagei_embed_{i}'] = base_val
                 
-                # Store in session state
-                st.session_state.ppg_features = ppg_features
+                # Generate realistic PPG waveform for visualization
+                duration = 10  # 10 seconds
+                fs = 250  # 250 Hz sampling rate
+                t = np.linspace(0, duration, duration * fs)
+                hr_hz = ppg_features['heart_rate_ppg'] / 60  # Convert BPM to Hz
                 
-                st.success("✅ PPG simulation complete")
-                st.write(f"Heart Rate: {ppg_features['heart_rate_ppg']:.1f} bpm")
-                st.write(f"HRV: {ppg_features['heart_rate_variability']:.1f} ms")
+                # Generate realistic PPG signal
+                ppg_signal = np.zeros_like(t)
+                for i, time in enumerate(t):
+                    # Main heartbeat component
+                    heartbeat_phase = 2 * np.pi * hr_hz * time
+                    ppg_signal[i] = (
+                        1.0 * np.sin(heartbeat_phase) +  # Main pulse
+                        0.3 * np.sin(2 * heartbeat_phase) +  # First harmonic
+                        0.1 * np.sin(3 * heartbeat_phase) +  # Second harmonic
+                        0.05 * np.random.normal()  # Noise
+                    )
+                    
+                    # Age effects (stiffer arteries = sharper peaks)
+                    if age > 50:
+                        ppg_signal[i] *= (1 + 0.2 * np.sin(heartbeat_phase + np.pi/4))
+                    
+                    # BMI effects (higher BMI = more dampened signal)
+                    if bmi > 25:
+                        ppg_signal[i] *= 0.9
+                
+                # Normalize and add baseline
+                ppg_signal = (ppg_signal - np.mean(ppg_signal)) / np.std(ppg_signal) * 0.5 + 1.0
+                
+                # Store both features and signal
+                st.session_state.ppg_features = ppg_features
+                st.session_state.ppg_signal = ppg_signal
+                st.session_state.ppg_time = t
+                
+                st.success("✅ Expected PPG generation complete")
+                
+                # Display PPG characteristics
+                col_hr, col_hrv = st.columns(2)
+                with col_hr:
+                    st.metric("Heart Rate", f"{ppg_features['heart_rate_ppg']:.1f} bpm")
+                with col_hrv:
+                    st.metric("HRV", f"{ppg_features['heart_rate_variability']:.1f} ms")
+                
+                # Plot the generated PPG signal
+                fig_ppg = go.Figure()
+                fig_ppg.add_trace(go.Scatter(
+                    x=t[:1250],  # Show first 5 seconds for clarity
+                    y=ppg_signal[:1250],
+                    mode='lines',
+                    name='Expected PPG Signal',
+                    line=dict(color='red', width=2)
+                ))
+                
+                fig_ppg.update_layout(
+                    title=f"Your Expected PPG Pattern (Age: {age}, BMI: {bmi:.1f})",
+                    xaxis_title="Time (seconds)",
+                    yaxis_title="PPG Amplitude",
+                    height=300,
+                    showlegend=False
+                )
+                
+                st.plotly_chart(fig_ppg, use_container_width=True)
+                
+                # Explain what the user is seeing
+                st.info("""
+                **📊 This is your personalized expected PPG pattern based on:**
+                - Your age influences pulse wave shape and timing
+                - Your BMI affects signal amplitude and clarity  
+                - Your heart rate determines the pulse frequency
+                - Realistic noise and harmonics simulate actual device readings
+                """)
         
         # Predict BP
         if st.button("🔮 Predict Blood Pressure", type="primary"):
