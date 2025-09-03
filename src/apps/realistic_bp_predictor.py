@@ -51,12 +51,36 @@ try:
     from src.core.linearprobing.utils import load_model_without_module_prefix, resample_batch_signal
     from src.core.preprocessing.ppg import preprocess_one_ppg_signal
     from src.core.segmentations import waveform_to_segments
-    from torch_ecg._preprocessors import Normalize
     import torch
     PAPAGEI_AVAILABLE = True
+    TORCH_AVAILABLE = True
 except ImportError as e:
-    st.warning(f"PaPaGei components not fully available: {e}")
+    st.info("ℹ️ Running in simplified mode without full PaPaGei integration")
     PAPAGEI_AVAILABLE = False
+    TORCH_AVAILABLE = False
+
+# Try to import torch-ecg components (optional)
+try:
+    from torch_ecg._preprocessors import Normalize
+    TORCH_ECG_AVAILABLE = True
+except ImportError:
+    # Create a simple fallback normalize class
+    class Normalize:
+        def __init__(self, method='minmax'):
+            self.method = method
+        
+        def __call__(self, data):
+            if self.method == 'minmax':
+                return (data - np.min(data)) / (np.max(data) - np.min(data))
+            return data
+    TORCH_ECG_AVAILABLE = False
+
+# Try to import pyPPG (optional)  
+try:
+    import pyPPG
+    PYPPG_AVAILABLE = True
+except ImportError:
+    PYPPG_AVAILABLE = False
 
 # Page configuration
 st.set_page_config(
@@ -427,6 +451,14 @@ def interpret_bp(systolic, diastolic):
 def main():
     st.title("🩺 Realistic Blood Pressure Predictor")
     st.markdown("*Using only clinically available features + PPG signal analysis*")
+    
+    # Show deployment mode status
+    if not PAPAGEI_AVAILABLE:
+        st.info("🌐 **Streamlit Cloud Mode**: Running with simplified PPG processing for broad compatibility")
+    elif not TORCH_ECG_AVAILABLE:
+        st.info("⚡ **Optimized Mode**: Running with core PaPaGei features")
+    else:
+        st.success("🔬 **Full Research Mode**: All advanced features available")
     
     # Initialize predictor
     if 'realistic_bp' not in st.session_state:

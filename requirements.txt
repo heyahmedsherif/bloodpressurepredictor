@@ -1,10 +1,11 @@
 # Blood Pressure Predictor - Streamlit Cloud Deployment Requirements
+# Optimized for Python 3.13 and dependency compatibility
+
 # Core ML and Scientific Computing
-torch>=1.11.0
-torchvision>=0.12.0
-torchaudio>=0.10.0
-numpy>=1.21.0
-pandas>=1.5.0
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.21.0,<2.0.0
+pandas>=1.3.0,<2.0.0
 scikit-learn>=1.0.0
 scipy>=1.9.0
 matplotlib>=3.5.0
@@ -15,18 +16,19 @@ joblib>=1.1.0
 streamlit>=1.28.0
 plotly>=5.15.0
 
-# Signal Processing and PPG
-pyPPG==1.0.41
-torch-ecg>=0.3.0
+# Signal Processing (compatible versions)
 peakutils>=1.3.0
 
 # Utilities
 tqdm>=4.64.0
 dotmap>=1.3.0
-openpyxl>=3.0.0
 
-# Medical/Research Data
-vitaldb>=1.0.0
+# Optional dependencies for extended functionality
+# Note: Some advanced PPG processing features may be limited without these
+# pyPPG - omitted due to pandas version conflicts
+# torch-ecg - omitted due to version availability on Python 3.13
 
-# ML Training (optional for deployment)
-pytorch_metric_learning>=2.0.0
+# For development/testing only (commented out for deployment)
+# openpyxl>=3.0.0
+# vitaldb>=1.0.0
+# pytorch_metric_learning>=2.0.0
