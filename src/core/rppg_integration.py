@@ -346,9 +346,14 @@ class rPPGToolboxIntegration:
         current_fs = metadata.get('sampling_rate', 250)
         
         if current_fs != target_fs:
-            from scipy.signal import resample
-            target_length = int(len(ppg_signal) * target_fs / current_fs)
-            ppg_signal = resample(ppg_signal, target_length)
+            try:
+                from scipy.signal import resample
+                target_length = int(len(ppg_signal) * target_fs / current_fs)
+                ppg_signal = resample(ppg_signal, target_length)
+            except ImportError:
+                logger.warning("Scipy not available, skipping resampling")
+                # Keep original sampling rate
+                target_fs = current_fs
         
         # Format for PaPaGei
         papagei_data = {

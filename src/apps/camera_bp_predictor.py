@@ -38,8 +38,20 @@ sys.path.append(str(project_root))
 # Import PaPaGei components
 try:
     from src.core.rppg_integration import rPPGToolboxIntegration, extract_ppg_from_camera, extract_ppg_from_video
-    from src.core.preprocessing.ppg import preprocess_one_ppg_signal, waveform_to_segments, resample_batch_signal
-    from src.core.utilities import Normalize
+    from src.core.preprocessing.ppg import preprocess_one_ppg_signal
+    from src.core.segmentations import waveform_to_segments
+    try:
+        from torch_ecg._preprocessors import Normalize
+    except ImportError:
+        # Fallback normalization class
+        class Normalize:
+            def __init__(self, method='z-score'):
+                self.method = method
+            def apply(self, signal, fs):
+                if self.method == 'z-score':
+                    normalized = (signal - np.mean(signal)) / np.std(signal)
+                    return normalized, {}
+                return signal, {}
     RPPG_AVAILABLE = True
 except ImportError as e:
     st.error(f"rPPG integration not available: {e}")
@@ -48,6 +60,17 @@ except ImportError as e:
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def simple_resample_signal(signal, fs_original, fs_target):
+    """Simple resampling function using scipy."""
+    try:
+        from scipy.signal import resample
+        target_length = int(len(signal) * fs_target / fs_original)
+        return resample(signal, target_length)
+    except ImportError:
+        # If scipy not available, return original signal
+        logger.warning("Scipy not available, skipping resampling")
+        return signal
 
 # Streamlit page config
 st.set_page_config(
