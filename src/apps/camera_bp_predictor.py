@@ -97,13 +97,127 @@ def main():
     with st.sidebar:
         st.header("🔧 Configuration")
         
-        # rPPG method selection
-        rppg_method = st.selectbox(
-            "rPPG Extraction Method",
-            ["CHROM", "POS", "ICA", "GREEN", "TSCAN", "PhysNet", "DeepPhys", "EfficientPhys"],
+        # rPPG method selection with detailed explanations
+        st.subheader("📊 rPPG Extraction Method")
+        
+        # Method categories
+        method_categories = {
+            "🟢 Unsupervised (Ready-to-use)": {
+                "CHROM": {
+                    "name": "CHROM (Recommended)",
+                    "speed": "⚡⚡",
+                    "accuracy": "⭐⭐⭐",
+                    "description": "Analyzes color differences between RGB channels",
+                    "best_for": "General use, good lighting",
+                    "pros": "Fast, reliable, works on most people"
+                },
+                "POS": {
+                    "name": "POS",
+                    "speed": "⚡⚡",
+                    "accuracy": "⭐⭐⭐⭐",
+                    "description": "Projects skin color changes onto optimal plane",
+                    "best_for": "Varying lighting, different skin tones",
+                    "pros": "Robust to illumination changes"
+                },
+                "ICA": {
+                    "name": "ICA",
+                    "speed": "⚡",
+                    "accuracy": "⭐⭐⭐",
+                    "description": "Separates mixed signals to isolate pulse",
+                    "best_for": "Noisy environments, motion artifacts",
+                    "pros": "Good at filtering interference"
+                },
+                "GREEN": {
+                    "name": "GREEN (Quick Test)",
+                    "speed": "⚡⚡⚡",
+                    "accuracy": "⭐⭐",
+                    "description": "Simple green channel analysis",
+                    "best_for": "Quick testing, minimal processing",
+                    "pros": "Fastest method, lowest cost"
+                }
+            },
+            "🧠 AI Methods (Advanced)": {
+                "TSCAN": {
+                    "name": "TSCAN (Highest Accuracy)",
+                    "speed": "⚡",
+                    "accuracy": "⭐⭐⭐⭐⭐",
+                    "description": "Neural network with attention mechanisms",
+                    "best_for": "Maximum accuracy, complex scenarios",
+                    "pros": "State-of-the-art performance"
+                },
+                "PhysNet": {
+                    "name": "PhysNet",
+                    "speed": "⚡",
+                    "accuracy": "⭐⭐⭐⭐⭐",
+                    "description": "End-to-end physiological measurement",
+                    "best_for": "Research, multi-person scenarios",
+                    "pros": "Handles complex conditions"
+                },
+                "DeepPhys": {
+                    "name": "DeepPhys",
+                    "speed": "⚡",
+                    "accuracy": "⭐⭐⭐⭐",
+                    "description": "Deep learning with motion representation",
+                    "best_for": "High motion environments",
+                    "pros": "Excellent motion robustness"
+                },
+                "EfficientPhys": {
+                    "name": "EfficientPhys",
+                    "speed": "⚡⚡",
+                    "accuracy": "⭐⭐⭐⭐",
+                    "description": "Lightweight neural network",
+                    "best_for": "Real-time, mobile devices",
+                    "pros": "Fast AI with good accuracy"
+                }
+            }
+        }
+        
+        # Method selection with enhanced interface
+        all_methods = []
+        method_info = {}
+        for category, methods in method_categories.items():
+            for method_key, details in methods.items():
+                all_methods.append(f"{details['name']}")
+                method_info[details['name']] = {**details, 'key': method_key}
+        
+        selected_method_display = st.selectbox(
+            "Choose Method:",
+            all_methods,
             index=0,
-            help="CHROM/POS/ICA/GREEN are unsupervised (no training needed). Neural methods may require pre-trained models."
+            help="Select the rPPG extraction algorithm. Hover over method names for details."
         )
+        
+        # Extract the actual method key
+        rppg_method = method_info[selected_method_display]['key']
+        
+        # Show detailed information about selected method
+        method_details = method_info[selected_method_display]
+        
+        with st.expander(f"ℹ️ About {selected_method_display}", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"**Speed:** {method_details['speed']}")
+                st.markdown(f"**Accuracy:** {method_details['accuracy']}")
+            with col2:
+                category = "🟢 Traditional" if method_details['key'] in method_categories["🟢 Unsupervised (Ready-to-use)"] else "🧠 AI-Based"
+                st.markdown(f"**Type:** {category}")
+            
+            st.markdown(f"**How it works:** {method_details['description']}")
+            st.markdown(f"**Best for:** {method_details['best_for']}")
+            st.markdown(f"**Advantages:** {method_details['pros']}")
+        
+        # Quick recommendations
+        st.markdown("### 🎯 Quick Recommendations")
+        st.info("""
+        **🏠 First time?** → CHROM (Recommended)  
+        **🔬 Research?** → TSCAN (Highest Accuracy)  
+        **⚡ Quick test?** → GREEN (Quick Test)  
+        **💡 Poor lighting?** → POS
+        """)
+        
+        # Method comparison button
+        if st.button("📊 Compare All Methods"):
+            st.session_state.show_method_comparison = True
         
         # Recording duration
         duration = st.slider(
@@ -143,6 +257,112 @@ def main():
     
     with tab4:
         info_interface()
+    
+    # Show method comparison if requested
+    if st.session_state.get('show_method_comparison', False):
+        show_method_comparison_modal()
+
+def show_method_comparison_modal():
+    """Display comprehensive method comparison."""
+    st.markdown("---")
+    st.header("📊 rPPG Method Comparison")
+    
+    # Close button
+    col1, col2 = st.columns([6, 1])
+    with col2:
+        if st.button("✕ Close"):
+            st.session_state.show_method_comparison = False
+            st.rerun()
+    
+    # Comparison table
+    comparison_data = {
+        "Method": [
+            "GREEN (Quick Test)", "CHROM (Recommended)", "POS", "ICA", 
+            "EfficientPhys", "DeepPhys", "PhysNet", "TSCAN (Highest Accuracy)"
+        ],
+        "Type": [
+            "🟢 Traditional", "🟢 Traditional", "🟢 Traditional", "🟢 Traditional",
+            "🧠 AI-Based", "🧠 AI-Based", "🧠 AI-Based", "🧠 AI-Based"
+        ],
+        "Speed": ["⚡⚡⚡", "⚡⚡", "⚡⚡", "⚡", "⚡⚡", "⚡", "⚡", "⚡"],
+        "Accuracy": ["⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐⭐⭐⭐"],
+        "Best Use Case": [
+            "Quick testing", "General use", "Poor lighting", "Noisy conditions",
+            "Mobile/real-time", "High motion", "Research/multi-person", "Maximum accuracy"
+        ],
+        "Key Advantage": [
+            "Fastest processing", "Reliable & fast", "Light-robust", "Noise-resistant",
+            "AI + speed", "Motion-robust", "Multi-person", "State-of-the-art"
+        ]
+    }
+    
+    import pandas as pd
+    df = pd.DataFrame(comparison_data)
+    st.dataframe(df, use_container_width=True)
+    
+    # Detailed recommendations
+    st.markdown("### 🎯 Detailed Recommendations")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        #### 🏠 **Home Users**
+        - **Start with:** CHROM (Recommended)
+        - **If poor lighting:** POS  
+        - **Quick test:** GREEN
+        - **Best accuracy:** TSCAN
+        
+        #### 📱 **Mobile/Real-time**
+        - **Best choice:** EfficientPhys
+        - **Alternative:** CHROM
+        - **Avoid:** PhysNet, TSCAN (too slow)
+        """)
+    
+    with col2:
+        st.markdown("""
+        #### 🔬 **Research/Clinical**
+        - **Highest accuracy:** TSCAN
+        - **Multi-person:** PhysNet
+        - **Motion studies:** DeepPhys
+        - **Baseline:** CHROM
+        
+        #### 🎥 **Challenging Conditions**
+        - **Poor lighting:** POS
+        - **Lots of movement:** DeepPhys
+        - **Noise/artifacts:** ICA
+        - **Multiple people:** PhysNet
+        """)
+    
+    # Performance characteristics
+    st.markdown("### ⚙️ Technical Details")
+    
+    st.info("""
+    **🟢 Traditional Methods:**
+    - No pre-training required
+    - Work immediately 
+    - Lower computational cost
+    - Good for most scenarios
+    
+    **🧠 AI Methods:**
+    - Require pre-trained models
+    - Higher computational cost
+    - Better for complex scenarios
+    - State-of-the-art accuracy
+    """)
+    
+    st.markdown("### 🔍 How rPPG Works")
+    
+    st.markdown("""
+    All methods detect **tiny color changes** in your facial skin caused by blood flow:
+    
+    1. **📹 Camera captures** your face (30 fps)
+    2. **🎨 Algorithm analyzes** pixel color changes over time  
+    3. **💓 Extracts pulse signal** from color variations
+    4. **🧠 PaPaGei processes** signal → predicts blood pressure
+    
+    **Different methods** = different ways to analyze those color changes!
+    """)
 
 def camera_interface(method: str, duration: float, camera_id: int, fps: int, quality_threshold: float):
     """Interface for live camera PPG extraction."""
@@ -701,56 +921,154 @@ def categorize_bp(systolic: float, diastolic: float) -> str:
         return "Hypertensive Crisis"
 
 def info_interface():
-    """Display information about camera-based PPG."""
+    """Display comprehensive information about camera-based PPG."""
     
     st.header("ℹ️ About Camera-Based PPG")
     
+    # Quick overview
     st.markdown("""
-    ### How It Works
+    ### 🎯 What This Does
     
-    Camera-based remote photoplethysmography (rPPG) extracts heart rate and blood pressure 
-    information from subtle color changes in facial skin caused by blood volume variations.
+    **Camera-based remote photoplethysmography (rPPG)** uses your device's camera to measure 
+    your heart rate and predict blood pressure by detecting tiny color changes in your facial 
+    skin caused by blood flow - no physical contact required!
+    """)
     
-    ### Technology Stack
+    # How it works section
+    with st.expander("🔍 How rPPG Technology Works", expanded=True):
+        st.markdown("""
+        #### The Science Behind It
+        
+        1. **📹 Camera Recording**: Records your face for 30+ seconds
+        2. **🎨 Color Analysis**: Detects microscopic skin color changes with each heartbeat
+        3. **💓 Pulse Extraction**: Isolates your pulse signal from the color variations  
+        4. **🧠 AI Processing**: PaPaGei foundation model analyzes the pulse pattern
+        5. **🩺 BP Prediction**: Predicts blood pressure from pulse characteristics
+        
+        #### Why It Works
+        - Every heartbeat pumps blood through facial capillaries
+        - Blood volume changes cause tiny color shifts (invisible to naked eye)
+        - Different rPPG algorithms detect these changes in various ways
+        - AI models translate pulse patterns into cardiovascular measurements
+        """)
     
-    - **rPPG-Toolbox**: State-of-the-art remote PPG extraction
-    - **PaPaGei Foundation Model**: Advanced PPG signal processing
-    - **Multiple Algorithms**: CHROM, POS, TSCAN, PhysNet, and more
+    # Method comparison quick reference
+    with st.expander("📊 Method Quick Reference"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            #### 🟢 **Traditional Methods**
+            - **CHROM** → Best all-around choice
+            - **POS** → Good for poor lighting  
+            - **ICA** → Handles noise well
+            - **GREEN** → Fastest for quick tests
+            """)
+        
+        with col2:
+            st.markdown("""
+            #### 🧠 **AI Methods**
+            - **TSCAN** → Highest accuracy
+            - **PhysNet** → Multi-person scenarios
+            - **DeepPhys** → Motion-robust
+            - **EfficientPhys** → Fast + accurate
+            """)
     
-    ### Supported Methods
+    # Technology stack
+    with st.expander("⚙️ Technology Stack"):
+        st.markdown("""
+        - **rPPG-Toolbox**: 8 state-of-the-art extraction algorithms
+        - **PaPaGei Foundation Model**: Nokia Bell Labs' signal processing AI
+        - **OpenCV**: Camera capture and video processing
+        - **Multiple Models**: Traditional signal processing + deep learning
+        """)
     
-    #### Unsupervised Methods (No Training Required)
-    - **CHROM**: Chrominance-based method
-    - **POS**: Plane-Orthogonal-to-Skin method  
-    - **ICA**: Independent Component Analysis
-    - **GREEN**: Simple green channel analysis
+    # Best practices
+    with st.expander("💡 Best Practices for Accuracy"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            #### 🎥 **Setup**
+            - **Distance**: 60-80cm from camera
+            - **Lighting**: Even, natural light (avoid direct sun)
+            - **Background**: Plain, non-reflective
+            - **Position**: Face centered in frame
+            """)
+        
+        with col2:
+            st.markdown("""
+            #### 🧘 **During Recording**  
+            - **Stay still**: Minimize head movement
+            - **Breathe normally**: Don't hold breath
+            - **Look at camera**: Keep face visible
+            - **30+ seconds**: Longer = more accurate
+            """)
     
-    #### Neural Methods (Pre-trained Models)
-    - **TSCAN**: Temporal Shift Convolutional Attention Network
-    - **PhysNet**: End-to-end physiological measurement
-    - **DeepPhys**: Deep learning for physiological signals
-    - **EfficientPhys**: Efficient neural rPPG method
+    # Accuracy and limitations
+    with st.expander("📈 Accuracy & Limitations"):
+        st.markdown("""
+        #### Expected Performance
+        - **Heart Rate**: ±5 BPM accuracy (research-validated)
+        - **Blood Pressure**: ±10-15 mmHg (varies by individual)
+        - **Best Methods**: TSCAN, PhysNet for highest accuracy
+        - **Factors**: Lighting, skin tone, motion affect results
+        
+        #### Important Limitations
+        ⚠️ **Not for medical diagnosis** - for wellness/research only  
+        ⚠️ **Individual variation** - accuracy varies per person  
+        ⚠️ **Environmental factors** - lighting and motion critical  
+        ⚠️ **Contact methods** still more accurate than camera-based  
+        """)
     
-    ### Best Practices
+    # Privacy and data
+    with st.expander("🔒 Privacy & Data"):
+        st.markdown("""
+        #### Your Privacy is Protected
+        ✅ **All processing is local** - no data sent to external servers  
+        ✅ **No video storage** - recordings deleted immediately after processing  
+        ✅ **No personal data** collected or retained  
+        ✅ **Open source** - you can inspect all code  
+        
+        #### How Data Flows
+        1. Camera → Temporary video file
+        2. rPPG algorithm → Pulse signal extraction  
+        3. PaPaGei model → Blood pressure prediction
+        4. Results displayed → Temporary files deleted
+        """)
     
-    1. **Good lighting**: Ensure even, natural lighting
-    2. **Stable position**: Keep your face still during recording
-    3. **Camera distance**: Sit 60-80cm from camera
-    4. **Recording duration**: 30+ seconds for best results
-    5. **Face visibility**: Keep your full face in frame
+    # Use cases
+    with st.expander("🎯 Use Cases & Applications"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            #### 🏠 **Personal Use**
+            - Daily health monitoring
+            - Fitness tracking
+            - Stress level assessment
+            - Wellness checkups
+            """)
+        
+        with col2:
+            st.markdown("""
+            #### 🔬 **Research/Clinical**
+            - Remote patient monitoring
+            - Telehealth applications  
+            - Population health studies
+            - Non-contact screening
+            """)
     
-    ### Accuracy Expectations
+    # Getting started
+    st.markdown("""
+    ### 🚀 Ready to Try?
     
-    - **Heart Rate**: ±5 BPM typical accuracy
-    - **Blood Pressure**: ±10-15 mmHg (research-grade)
-    - **Quality factors**: Lighting, motion, skin tone affect accuracy
+    1. **📹 Test your camera** first (Camera tab → Test Camera button)
+    2. **🎯 Choose method** (CHROM recommended for first-time users)  
+    3. **🔴 Start recording** (30 seconds, follow positioning tips)
+    4. **📊 View results** (heart rate, BP prediction, signal quality)
     
-    ### Limitations
-    
-    - Not intended for medical diagnosis
-    - Accuracy varies with individual characteristics
-    - Environmental conditions affect performance
-    - For research and wellness monitoring only
+    **Pro tip**: Try different methods to see which works best for your setup!
     """)
 
 if __name__ == "__main__":
