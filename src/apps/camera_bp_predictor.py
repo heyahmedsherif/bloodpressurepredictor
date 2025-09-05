@@ -166,20 +166,67 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
             record_camera_ppg(method, duration, camera_id, fps, quality_threshold)
     
     with col2:
-        # Camera preview (placeholder)
-        st.markdown("### Camera Preview")
-        camera_placeholder = st.empty()
+        # Camera preview and status
+        st.markdown("### Camera Status")
         
-        # Show camera status
-        try:
-            cap = cv2.VideoCapture(camera_id)
-            if cap.isOpened():
-                st.success(f"✅ Camera {camera_id} available")
-                cap.release()
-            else:
-                st.error(f"❌ Camera {camera_id} not available")
-        except:
-            st.error("❌ Camera access failed")
+        # Test camera button
+        if st.button("📹 Test Camera", help="Check if camera is working"):
+            test_camera_access(camera_id)
+        
+        # Camera tips
+        with st.expander("💡 Camera Tips", expanded=True):
+            st.markdown("""
+            **For best results:**
+            - 📏 **Distance**: 60-80cm from camera
+            - 💡 **Lighting**: Even, natural lighting
+            - 🎯 **Position**: Face centered in camera view
+            - 😐 **Stay still**: Minimize movement
+            - ⏰ **Duration**: 30+ seconds recommended
+            
+            **Privacy:** All processing is local, no data stored
+            """)
+
+def test_camera_access(camera_id: int):
+    """Test camera access and show preview frame."""
+    import cv2
+    
+    try:
+        cap = cv2.VideoCapture(camera_id)
+        if not cap.isOpened():
+            st.error(f"❌ Camera {camera_id} not accessible")
+            st.info("💡 **Troubleshooting:**")
+            st.markdown("""
+            - Close other apps using the camera
+            - Check camera permissions in System Preferences
+            - Try a different camera ID (1, 2, etc.)
+            """)
+            return
+        
+        # Get frame for preview
+        ret, frame = cap.read()
+        if ret:
+            # Convert BGR to RGB for display
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Get camera info
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            
+            st.success(f"✅ Camera {camera_id} working!")
+            st.info(f"📹 Resolution: {width}x{height} | FPS: {fps:.1f}")
+            
+            # Show preview frame
+            st.image(frame_rgb, caption="Camera Preview", width=300)
+            
+        else:
+            st.error("❌ Cannot capture frame from camera")
+            
+        cap.release()
+        
+    except Exception as e:
+        st.error(f"❌ Camera test failed: {e}")
+        st.info("💡 Make sure no other apps are using the camera")
 
 def video_upload_interface(method: str, duration: float, fps: int):
     """Interface for video file PPG extraction."""
@@ -221,24 +268,50 @@ def video_upload_interface(method: str, duration: float, fps: int):
                 os.unlink(temp_video_path)
 
 def record_camera_ppg(method: str, duration: float, camera_id: int, fps: int, quality_threshold: float):
-    """Record PPG signal from camera."""
+    """Record PPG signal from camera with real-time progress."""
     
     progress_bar = st.progress(0)
     status_text = st.empty()
+    countdown_placeholder = st.empty()
     
     try:
         status_text.text("🎥 Initializing camera...")
+        progress_bar.progress(0.1)
         
-        # Initialize rPPG extractor
-        extractor = rPPGToolboxIntegration(method=method)
+        # Test camera access first
+        import cv2
+        cap = cv2.VideoCapture(camera_id)
+        if not cap.isOpened():
+            st.error(f"❌ Cannot access camera {camera_id}. Please check permissions.")
+            return
         
-        status_text.text("📹 Recording video...")
+        # Get camera properties
+        actual_fps = cap.get(cv2.CAP_PROP_FPS) or 30
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+        
+        st.info(f"📹 Camera ready: {width}x{height} at {actual_fps:.1f}fps")
         progress_bar.progress(0.2)
         
-        # Extract PPG from camera
-        ppg_signal, metadata = extractor.extract_ppg_from_camera(duration, camera_id)
-        progress_bar.progress(0.6)
+        # Record with progress updates
+        status_text.text("🔴 Recording video...")
+        temp_video_path = record_video_with_progress(
+            camera_id, duration, progress_bar, countdown_placeholder, status_text
+        )
         
+        if temp_video_path is None:
+            st.error("❌ Recording failed")
+            return
+            
+        progress_bar.progress(0.7)
+        status_text.text("🔄 Extracting PPG signal...")
+        
+        # Initialize rPPG extractor and process video
+        extractor = rPPGToolboxIntegration(method=method)
+        ppg_signal, metadata = extractor.extract_ppg_from_video(temp_video_path, duration)
+        
+        progress_bar.progress(0.9)
         status_text.text("🧠 Processing with PaPaGei...")
         
         # Convert to PaPaGei format and predict BP
@@ -262,12 +335,102 @@ def record_camera_ppg(method: str, duration: float, camera_id: int, fps: int, qu
         # Display quick results
         display_quick_results(bp_prediction, metadata)
         
+        # Cleanup temporary video
+        try:
+            os.unlink(temp_video_path)
+        except:
+            pass
+        
     except Exception as e:
         st.error(f"❌ Camera PPG extraction failed: {e}")
         logger.error(f"Camera PPG extraction error: {e}")
     finally:
         progress_bar.empty()
         status_text.empty()
+        countdown_placeholder.empty()
+
+def record_video_with_progress(camera_id: int, duration: float, progress_bar, countdown_placeholder, status_text):
+    """Record video with real-time progress updates."""
+    import cv2
+    import tempfile
+    import time
+    
+    # Create temporary video file  
+    temp_video_path = tempfile.mktemp(suffix='.avi')
+    
+    # Open camera
+    cap = cv2.VideoCapture(camera_id)
+    if not cap.isOpened():
+        return None
+    
+    try:
+        # Camera properties
+        fps = 30
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        # Video writer - use XVID for better compatibility
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        temp_video_path = temp_video_path.replace('.mp4', '.avi')  # Use AVI for better compatibility
+        out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
+        
+        total_frames = int(fps * duration)
+        frames_recorded = 0
+        start_time = time.time()
+        
+        # Recording countdown
+        for countdown in range(3, 0, -1):
+            countdown_placeholder.markdown(f"## 🎬 Recording starts in: {countdown}")
+            time.sleep(1)
+        
+        countdown_placeholder.markdown("## 🔴 RECORDING...")
+        
+        failed_reads = 0
+        max_failed_reads = 100  # Allow some failed reads before giving up
+        
+        while frames_recorded < total_frames:
+            ret, frame = cap.read()
+            
+            if not ret:
+                failed_reads += 1
+                if failed_reads > max_failed_reads:
+                    logger.error(f"Too many failed camera reads ({failed_reads})")
+                    break
+                time.sleep(0.01)  # Brief pause before retry
+                continue
+            
+            # Reset failed reads counter on successful read
+            failed_reads = 0
+            
+            out.write(frame)
+            frames_recorded += 1
+            
+            # Update progress every 10 frames to avoid too many updates
+            if frames_recorded % 10 == 0:
+                progress = 0.2 + (frames_recorded / total_frames) * 0.5  # 20% to 70%
+                progress_bar.progress(progress)
+                
+                elapsed_time = time.time() - start_time
+                remaining_time = max(0, duration - elapsed_time)
+                
+                countdown_placeholder.markdown(f"## ⏱️ {remaining_time:.1f}s remaining")
+                status_text.text(f"📹 Recording: {frames_recorded}/{total_frames} frames")
+            
+            # Safety timeout check
+            if time.time() - start_time > duration + 10:  # 10 second buffer
+                logger.warning("Recording timeout reached")
+                break
+        
+        countdown_placeholder.markdown("## ✅ Recording complete!")
+        return temp_video_path
+        
+    except Exception as e:
+        logger.error(f"Video recording error: {e}")
+        return None
+    finally:
+        cap.release()
+        if 'out' in locals():
+            out.release()
 
 def extract_video_ppg(video_path: str, method: str, duration: float):
     """Extract PPG signal from video file."""
