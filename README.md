@@ -11,7 +11,7 @@
 
 ## 🎯 **What This Is**
 
-A **production-ready blood pressure prediction system** built on Nokia Bell Labs' PaPaGei foundation model for PPG signal analysis. This suite provides three applications ranging from clinically deployable to research-focused.
+A **production-ready blood pressure prediction system** built on Nokia Bell Labs' PaPaGei foundation model for PPG signal analysis. This suite provides four applications ranging from clinically deployable to cutting-edge camera-based prediction.
 
 ## 🚀 **Quick Deploy to Streamlit Cloud**
 
@@ -31,6 +31,15 @@ A **production-ready blood pressure prediction system** built on Nokia Bell Labs
 
 **Features Used**: Age, gender, BMI, PPG analysis, previous BP (if available)
 
+### **📹 Camera BP Predictor** 🆕 **(Revolutionary)**
+- **No Contact Required**: Extract PPG from camera video of your face
+- **rPPG-Toolbox Integration**: State-of-the-art remote photoplethysmography  
+- **Multiple Algorithms**: CHROM, POS, TSCAN, PhysNet, DeepPhys, EfficientPhys
+- **Real-Time Processing**: 30-second recording → instant BP prediction
+- **Perfect for**: Telehealth, remote monitoring, contact-free screening
+
+**Technology**: Camera-based rPPG → PaPaGei embeddings → BP prediction
+
 ### **🔬 Extended BP Predictor**
 - **Research Mode**: 16+ lifestyle and clinical features
 - **Higher Accuracy**: ±8.5 mmHg (but less practical for deployment)
@@ -45,37 +54,52 @@ A **production-ready blood pressure prediction system** built on Nokia Bell Labs
 
 ```
 ├── streamlit_app.py          # 🎯 Main entry point (Streamlit Cloud)
-├── requirements.txt          # 📦 All dependencies
+├── requirements.txt          # 📦 All dependencies (including rPPG deps)
 ├── README.md                 # 📖 This file
 ├── DEPLOYMENT.md            # 🚀 Deployment guide
+├── scripts/setup_rppg.sh     # 🔧 rPPG-Toolbox setup script
 │
 ├── src/
 │   ├── apps/                # 🖥️ Streamlit applications
-│   ├── core/                # 🧠 PaPaGei components
+│   ├── core/                # 🧠 PaPaGei + rPPG integration
 │   └── utils/               # 🛠️ Utilities
+│
+├── external/
+│   └── rppg-toolbox/        # 📹 Camera-based PPG extraction
 │
 ├── weights/                 # 🧬 Model weights (23.3MB)
 ├── docs/                    # 📚 Documentation
 ├── examples/                # 📋 Usage examples
-└── scripts/                 # 🔧 Validation tools
+└── scripts/                 # 🔧 Setup and validation tools
 ```
 
 ## 🛠️ **Local Development**
 
-### **Setup**
+### **Basic Setup**
 ```bash
 git clone https://github.com/heyahmedsherif/bloodpressurepredictor.git
 cd bloodpressurepredictor
 pip install -r requirements.txt
 ```
 
+### **Camera PPG Setup (Optional)**
+```bash
+# Setup rPPG-Toolbox for camera-based PPG extraction
+bash scripts/setup_rppg.sh
+
+# Or manual setup:
+git submodule update --init --recursive
+cd external/rppg-toolbox && bash setup.sh conda
+```
+
 ### **Run Apps**
 ```bash
-# Main app with all three options
+# Main app with all four options (including camera PPG)
 streamlit run streamlit_app.py
 
 # Or run individual apps:
-streamlit run src/apps/realistic_bp_predictor.py --server.port=8503
+streamlit run src/apps/realistic_bp_predictor.py --server.port=8504
+streamlit run src/apps/camera_bp_predictor.py --server.port=8503  
 streamlit run src/apps/bp_predictor.py --server.port=8502  
 streamlit run src/apps/streamlit_app_robust.py --server.port=8501
 ```

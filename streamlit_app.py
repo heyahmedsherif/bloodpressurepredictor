@@ -25,6 +25,7 @@ def main():
         "Choose Application:",
         [
             "Realistic BP Predictor (Recommended)",
+            "📹 Camera BP Predictor (NEW!)",
             "Extended BP Predictor", 
             "PPG Signal Processor"
         ]
@@ -40,6 +41,16 @@ def main():
         except ImportError as e:
             st.error(f"Import error: {e}")
             st.error("Please ensure all dependencies are installed")
+            
+    elif app_choice == "📹 Camera BP Predictor (NEW!)":
+        st.markdown("---")
+        st.info("📹 **Camera-Based**: Extract PPG from camera using rPPG-Toolbox + PaPaGei")
+        try:
+            from src.apps.camera_bp_predictor import main as camera_main
+            camera_main()
+        except ImportError as e:
+            st.error(f"Camera BP Predictor not available: {e}")
+            st.error("Please install rPPG-Toolbox dependencies: cd external/rppg-toolbox && bash setup.sh conda")
             
     elif app_choice == "Extended BP Predictor":
         st.markdown("---")
