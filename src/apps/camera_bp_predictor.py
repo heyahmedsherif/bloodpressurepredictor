@@ -40,6 +40,8 @@ try:
     from src.core.rppg_integration import rPPGToolboxIntegration, extract_ppg_from_camera, extract_ppg_from_video
     from src.core.preprocessing.ppg import preprocess_one_ppg_signal
     from src.core.segmentations import waveform_to_segments
+    from src.core.glucose_integration import GlucoseIntegration
+    from src.core.cholesterol_integration import CholesterolCardiovascularIntegration
     try:
         from torch_ecg._preprocessors import Normalize
     except ImportError:
@@ -84,8 +86,9 @@ def main():
     """Main Streamlit application."""
     
     # Title and description
-    st.title("📹 Camera-Based Blood Pressure Predictor")
+    st.title("📹 Camera-Based Health Predictor Suite")
     st.markdown("*Powered by rPPG-Toolbox + PaPaGei Foundation Model*")
+    st.markdown("🩺 **Blood Pressure** • 🍯 **Glucose** • ❤️ **Cardiovascular Risk**")
     
     # Check if rPPG is available
     if not RPPG_AVAILABLE:
@@ -238,10 +241,59 @@ def main():
             help="0 for default camera, 1+ for additional cameras"
         )
         
+        # Patient Information for Enhanced Predictions
+        st.markdown("---")
+        st.subheader("👤 Patient Information")
+        st.markdown("*Optional: Improves glucose & cardiovascular predictions*")
+        
+        # Basic demographics
+        patient_age = st.number_input("Age", min_value=18, max_value=100, value=30, step=1)
+        patient_gender = st.selectbox("Gender", ["Female", "Male"], index=0)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            height_cm = st.number_input("Height (cm)", min_value=120, max_value=220, value=170, step=1)
+        with col2:
+            weight_kg = st.number_input("Weight (kg)", min_value=30, max_value=200, value=70, step=1)
+        
+        # Health information
+        with st.expander("🏥 Health Information (Optional)"):
+            st.markdown("*For more accurate cardiovascular risk assessment*")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                total_cholesterol = st.number_input(
+                    "Total Cholesterol (mg/dL)", 
+                    min_value=100, max_value=400, value=200, step=5,
+                    help="Leave as default if unknown"
+                )
+                cigarettes_per_day = st.number_input(
+                    "Cigarettes per day", 
+                    min_value=0, max_value=60, value=0, step=1
+                )
+            
+            with col2:
+                diabetes = st.checkbox("Diabetes", value=False)
+                hypertension = st.checkbox("Hypertension", value=False) 
+                bp_medication = st.checkbox("Blood Pressure Medication", value=False)
+        
         # Advanced settings
-        with st.expander("Advanced Settings"):
+        with st.expander("⚙️ Advanced Settings"):
             target_fps = st.slider("Target FPS", 15, 60, 30)
             quality_threshold = st.slider("Quality Threshold", 0.1, 1.0, 0.5)
+        
+        # Store patient info in session state
+        st.session_state.patient_info = {
+            'age': patient_age,
+            'gender': patient_gender,
+            'height_cm': height_cm,
+            'weight_kg': weight_kg,
+            'total_cholesterol': total_cholesterol if total_cholesterol != 200 else None,
+            'cigarettes_per_day': cigarettes_per_day,
+            'diabetes': diabetes,
+            'hypertension': hypertension,
+            'bp_medication': bp_medication
+        }
             
     # Main content area
     tab1, tab2, tab3, tab4 = st.tabs(["📹 Live Camera", "🎥 Video Upload", "📊 Results", "ℹ️ Info"])
@@ -534,9 +586,10 @@ def record_camera_ppg(method: str, duration: float, camera_id: int, fps: int, qu
         progress_bar.progress(0.9)
         status_text.text("🧠 Processing with PaPaGei...")
         
-        # Convert to PaPaGei format and predict BP
+        # Convert to PaPaGei format and predict comprehensive health metrics
         papagei_data = extractor.convert_to_papagei_format(ppg_signal, metadata)
-        bp_prediction = predict_bp_from_ppg(papagei_data)
+        patient_info = st.session_state.get('patient_info', {})
+        health_predictions = predict_unified_health_metrics(papagei_data, patient_info)
         
         progress_bar.progress(1.0)
         status_text.text("✅ Processing complete!")
@@ -545,7 +598,7 @@ def record_camera_ppg(method: str, duration: float, camera_id: int, fps: int, qu
         st.session_state.ppg_results = {
             'ppg_signal': ppg_signal,
             'metadata': metadata,
-            'bp_prediction': bp_prediction,
+            'health_predictions': health_predictions,
             'method': method,
             'source': 'camera'
         }
@@ -553,7 +606,7 @@ def record_camera_ppg(method: str, duration: float, camera_id: int, fps: int, qu
         st.success("🎉 PPG extraction and BP prediction completed!")
         
         # Display quick results
-        display_quick_results(bp_prediction, metadata)
+        display_unified_results(health_predictions, metadata)
         
         # Cleanup temporary video
         try:
@@ -673,9 +726,10 @@ def extract_video_ppg(video_path: str, method: str, duration: float):
         
         status_text.text("🧠 Processing with PaPaGei...")
         
-        # Convert to PaPaGei format and predict BP
+        # Convert to PaPaGei format and predict comprehensive health metrics
         papagei_data = extractor.convert_to_papagei_format(ppg_signal, metadata)
-        bp_prediction = predict_bp_from_ppg(papagei_data)
+        patient_info = st.session_state.get('patient_info', {})
+        health_predictions = predict_unified_health_metrics(papagei_data, patient_info)
         
         progress_bar.progress(1.0)
         status_text.text("✅ Processing complete!")
@@ -684,7 +738,7 @@ def extract_video_ppg(video_path: str, method: str, duration: float):
         st.session_state.ppg_results = {
             'ppg_signal': ppg_signal,
             'metadata': metadata,
-            'bp_prediction': bp_prediction,
+            'health_predictions': health_predictions,
             'method': method,
             'source': 'video'
         }
@@ -692,7 +746,7 @@ def extract_video_ppg(video_path: str, method: str, duration: float):
         st.success("🎉 Video PPG extraction and BP prediction completed!")
         
         # Display quick results
-        display_quick_results(bp_prediction, metadata)
+        display_unified_results(health_predictions, metadata)
         
     except Exception as e:
         st.error(f"❌ Video PPG extraction failed: {e}")
@@ -701,52 +755,127 @@ def extract_video_ppg(video_path: str, method: str, duration: float):
         progress_bar.empty()
         status_text.empty()
 
-def predict_bp_from_ppg(papagei_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Predict blood pressure from PPG data using PaPaGei pipeline."""
+def predict_unified_health_metrics(papagei_data: Dict[str, Any], patient_info: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Unified health prediction from PPG data: Blood Pressure, Glucose, and Cardiovascular Risk."""
     
     try:
         ppg_signal = papagei_data['ppg_signal']
         sampling_rate = papagei_data['sampling_rate']
         
-        # Basic feature extraction for demonstration
-        # In real implementation, this would use the full PaPaGei pipeline
-        
         # Calculate heart rate
         heart_rate = calculate_heart_rate(ppg_signal, sampling_rate)
         
-        # Mock BP prediction (replace with actual PaPaGei model)
-        # This is a simplified demonstration - real implementation would use
-        # trained PaPaGei embeddings + regression models
-        
-        # Basic heuristic prediction for demonstration
+        # Blood Pressure Prediction (Mock - replace with actual PaPaGei model)
         systolic_bp = 100 + (heart_rate - 60) * 0.8 + np.random.normal(0, 5)
         diastolic_bp = 70 + (heart_rate - 60) * 0.4 + np.random.normal(0, 3)
-        
-        # Ensure reasonable ranges
         systolic_bp = np.clip(systolic_bp, 90, 200)
         diastolic_bp = np.clip(diastolic_bp, 60, 120)
         
+        # Prepare unified data format for predictions
+        unified_data = {
+            'ppg_signal': ppg_signal,
+            'heart_rate': heart_rate,
+            'blood_pressure': {
+                'systolic': float(systolic_bp),
+                'diastolic': float(diastolic_bp)
+            }
+        }
+        
+        # Add patient information if provided
+        if patient_info:
+            unified_data.update(patient_info)
+        
+        # Initialize prediction modules
+        glucose_predictor = GlucoseIntegration()
+        cardiovascular_predictor = CholesterolCardiovascularIntegration()
+        
+        # Glucose Prediction
+        try:
+            glucose_result = glucose_predictor.predict_from_papagei_format(unified_data)
+        except Exception as e:
+            logger.warning(f"Glucose prediction failed: {e}")
+            glucose_result = {
+                'predicted_glucose_mg_dl': 'N/A',
+                'confidence_score': 0.0,
+                'interpretation': 'Prediction unavailable',
+                'model_used': 'error'
+            }
+        
+        # Cardiovascular Risk Prediction
+        try:
+            cvd_result = cardiovascular_predictor.predict_from_papagei_format(unified_data)
+        except Exception as e:
+            logger.warning(f"Cardiovascular prediction failed: {e}")
+            cvd_result = {
+                '10_year_chd_risk_probability': 'N/A',
+                'risk_category': 'Assessment unavailable',
+                'recommendations': ['Consult healthcare provider for proper assessment'],
+                'model_used': 'error'
+            }
+        
+        # Compile comprehensive results
         prediction = {
-            'systolic_bp': float(systolic_bp),
-            'diastolic_bp': float(diastolic_bp),
-            'heart_rate': float(heart_rate),
-            'confidence': 0.75,  # Mock confidence
-            'quality_score': papagei_data['metadata'].get('quality_score', 0.8),
-            'method': 'PaPaGei + rPPG',
-            'timestamp': time.time()
+            # Blood Pressure Results
+            'blood_pressure': {
+                'systolic_bp': float(systolic_bp),
+                'diastolic_bp': float(diastolic_bp),
+                'heart_rate': float(heart_rate),
+                'bp_category': categorize_blood_pressure(systolic_bp, diastolic_bp),
+                'confidence': 0.75
+            },
+            
+            # Glucose Results
+            'glucose': glucose_result,
+            
+            # Cardiovascular Risk Results  
+            'cardiovascular_risk': cvd_result,
+            
+            # Overall Assessment
+            'overall': {
+                'quality_score': papagei_data['metadata'].get('quality_score', 0.8),
+                'method': 'PaPaGei + rPPG + Unified ML',
+                'timestamp': time.time(),
+                'data_completeness': calculate_data_completeness(patient_info)
+            }
         }
         
         return prediction
         
     except Exception as e:
-        logger.error(f"BP prediction error: {e}")
+        logger.error(f"Unified health prediction error: {e}")
         return {
-            'systolic_bp': None,
-            'diastolic_bp': None,
-            'heart_rate': None,
-            'confidence': 0.0,
-            'error': str(e)
+            'blood_pressure': {
+                'systolic_bp': None,
+                'diastolic_bp': None,
+                'heart_rate': None,
+            },
+            'glucose': {'predicted_glucose_mg_dl': 'N/A', 'interpretation': 'Error'},
+            'cardiovascular_risk': {'risk_category': 'Error', 'recommendations': []},
+            'overall': {'quality_score': 0.0, 'error': str(e)}
         }
+
+def categorize_blood_pressure(systolic: float, diastolic: float) -> str:
+    """Categorize blood pressure according to AHA guidelines."""
+    if systolic < 120 and diastolic < 80:
+        return "Normal"
+    elif systolic < 130 and diastolic < 80:
+        return "Elevated"
+    elif (120 <= systolic < 140) or (80 <= diastolic < 90):
+        return "Stage 1 Hypertension"
+    elif systolic >= 140 or diastolic >= 90:
+        return "Stage 2 Hypertension"
+    else:
+        return "Hypertensive Crisis"
+
+def calculate_data_completeness(patient_info: Dict[str, Any]) -> float:
+    """Calculate completeness score for patient data."""
+    if not patient_info:
+        return 0.3  # Base PPG data only
+    
+    important_fields = ['age', 'gender', 'height_cm', 'weight_kg', 'total_cholesterol', 'diabetes', 'hypertension']
+    available_fields = sum(1 for field in important_fields if patient_info.get(field) is not None)
+    
+    return 0.3 + (available_fields / len(important_fields)) * 0.7
 
 def calculate_heart_rate(ppg_signal: np.ndarray, sampling_rate: int) -> float:
     """Calculate heart rate from PPG signal."""
@@ -775,40 +904,61 @@ def calculate_heart_rate(ppg_signal: np.ndarray, sampling_rate: int) -> float:
         logger.error(f"Heart rate calculation error: {e}")
         return 70.0  # Default
 
-def display_quick_results(bp_prediction: Dict[str, Any], metadata: Dict[str, Any]):
-    """Display quick results summary."""
+def display_unified_results(health_predictions: Dict[str, Any], metadata: Dict[str, Any]):
+    """Display comprehensive health prediction results."""
     
+    st.markdown("### 🎯 Quick Health Assessment")
+    
+    # Blood Pressure Results
+    bp_data = health_predictions.get('blood_pressure', {})
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if bp_prediction.get('systolic_bp'):
+        if bp_data.get('systolic_bp'):
             st.metric(
-                "Systolic BP",
-                f"{bp_prediction['systolic_bp']:.0f} mmHg",
-                help="Upper blood pressure reading"
+                "🩺 Blood Pressure",
+                f"{bp_data['systolic_bp']:.0f}/{bp_data['diastolic_bp']:.0f}",
+                help=f"Category: {bp_data.get('bp_category', 'Unknown')}"
             )
         else:
-            st.metric("Systolic BP", "Error")
+            st.metric("🩺 Blood Pressure", "Error")
     
     with col2:
-        if bp_prediction.get('diastolic_bp'):
+        glucose_data = health_predictions.get('glucose', {})
+        if glucose_data.get('predicted_glucose_mg_dl', 'N/A') != 'N/A':
             st.metric(
-                "Diastolic BP",
-                f"{bp_prediction['diastolic_bp']:.0f} mmHg",
-                help="Lower blood pressure reading"
+                "🍯 Glucose Level",
+                f"{glucose_data['predicted_glucose_mg_dl']} mg/dL",
+                help=glucose_data.get('interpretation', 'Glucose prediction')
             )
         else:
-            st.metric("Diastolic BP", "Error")
+            st.metric("🍯 Glucose Level", "Estimating...")
     
     with col3:
-        if bp_prediction.get('heart_rate'):
+        cvd_data = health_predictions.get('cardiovascular_risk', {})
+        if cvd_data.get('10_year_chd_risk_probability', 'N/A') != 'N/A':
+            risk_pct = f"{float(cvd_data['10_year_chd_risk_probability']) * 100:.1f}%"
             st.metric(
-                "Heart Rate",
-                f"{bp_prediction['heart_rate']:.0f} BPM",
-                help="Beats per minute"
+                "❤️ CV Risk (10yr)",
+                risk_pct,
+                help=cvd_data.get('risk_category', 'Cardiovascular risk')
             )
         else:
-            st.metric("Heart Rate", "Error")
+            st.metric("❤️ CV Risk (10yr)", "Assessing...")
+    
+    # Additional quick insights
+    col1, col2 = st.columns(2)
+    with col1:
+        if bp_data.get('heart_rate'):
+            st.info(f"💓 Heart Rate: **{bp_data['heart_rate']:.0f} BPM**")
+    
+    with col2:
+        overall_data = health_predictions.get('overall', {})
+        completeness = overall_data.get('data_completeness', 0.3)
+        if completeness > 0.7:
+            st.success(f"✅ Data Quality: **{completeness*100:.0f}%** Complete")
+        else:
+            st.warning(f"⚠️ Data Quality: **{completeness*100:.0f}%** - Add patient info for better accuracy")
 
 def results_interface():
     """Display detailed results and visualizations."""
@@ -822,28 +972,99 @@ def results_interface():
     results = st.session_state.ppg_results
     ppg_signal = results['ppg_signal']
     metadata = results['metadata']
-    bp_prediction = results['bp_prediction']
+    health_predictions = results['health_predictions']
     
-    # Results summary
-    st.subheader("📋 Results Summary")
+    # Comprehensive Health Results
+    st.subheader("📋 Comprehensive Health Assessment")
     
-    col1, col2 = st.columns(2)
+    # Create tabs for different aspects
+    bp_tab, glucose_tab, cvd_tab, tech_tab = st.tabs(["🩺 Blood Pressure", "🍯 Glucose", "❤️ Cardiovascular Risk", "⚙️ Technical"])
     
-    with col1:
-        st.markdown("#### Blood Pressure Prediction")
-        if bp_prediction.get('systolic_bp'):
-            bp_category = categorize_bp(bp_prediction['systolic_bp'], bp_prediction['diastolic_bp'])
-            st.markdown(f"**{bp_prediction['systolic_bp']:.0f}/{bp_prediction['diastolic_bp']:.0f} mmHg**")
-            st.markdown(f"Category: **{bp_category}**")
-            st.markdown(f"Heart Rate: **{bp_prediction.get('heart_rate', 'N/A'):.0f} BPM**")
-            st.markdown(f"Confidence: **{bp_prediction.get('confidence', 0)*100:.0f}%**")
+    with bp_tab:
+        bp_data = health_predictions.get('blood_pressure', {})
+        if bp_data.get('systolic_bp'):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("#### Blood Pressure Reading")
+                st.markdown(f"**{bp_data['systolic_bp']:.0f}/{bp_data['diastolic_bp']:.0f} mmHg**")
+                st.markdown(f"Category: **{bp_data.get('bp_category', 'Unknown')}**")
+                st.markdown(f"Heart Rate: **{bp_data.get('heart_rate', 'N/A'):.0f} BPM**")
+                st.markdown(f"Confidence: **{bp_data.get('confidence', 0)*100:.0f}%**")
+            with col2:
+                st.markdown("#### BP Guidelines")
+                st.markdown("""
+                - **Normal**: <120/<80 mmHg
+                - **Elevated**: 120-129/<80 mmHg
+                - **Stage 1**: 130-139/80-89 mmHg
+                - **Stage 2**: ≥140/≥90 mmHg
+                """)
+        else:
+            st.error("Blood pressure prediction failed")
     
-    with col2:
-        st.markdown("#### Extraction Info")
-        st.markdown(f"Method: **{metadata.get('method', 'Unknown')}**")
-        st.markdown(f"Source: **{results.get('source', 'Unknown')}**")
-        st.markdown(f"Quality: **{metadata.get('quality_score', 0)*100:.0f}%**")
-        st.markdown(f"Duration: **{metadata.get('duration', 0):.1f}s**")
+    with glucose_tab:
+        glucose_data = health_predictions.get('glucose', {})
+        if glucose_data.get('predicted_glucose_mg_dl', 'N/A') != 'N/A':
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("#### Glucose Prediction")
+                st.markdown(f"**{glucose_data['predicted_glucose_mg_dl']} mg/dL**")
+                st.markdown(f"Interpretation: **{glucose_data.get('interpretation', 'N/A')}**")
+                st.markdown(f"Confidence: **{glucose_data.get('confidence_score', 0)*100:.0f}%**")
+                st.markdown(f"Model: {glucose_data.get('model_used', 'Unknown')}")
+            with col2:
+                st.markdown("#### Glucose Guidelines")
+                st.markdown("""
+                - **Normal**: 70-99 mg/dL (fasting)
+                - **Prediabetes**: 100-125 mg/dL
+                - **Diabetes**: ≥126 mg/dL (fasting)
+                - **Low**: <70 mg/dL (hypoglycemia)
+                """)
+        else:
+            st.warning("Glucose prediction requires more patient information")
+    
+    with cvd_tab:
+        cvd_data = health_predictions.get('cardiovascular_risk', {})
+        if cvd_data.get('10_year_chd_risk_probability', 'N/A') != 'N/A':
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("#### 10-Year Cardiovascular Risk")
+                risk_pct = f"{float(cvd_data['10_year_chd_risk_probability']) * 100:.1f}%"
+                st.markdown(f"**{risk_pct}**")
+                st.markdown(f"Category: **{cvd_data.get('risk_category', 'Unknown')}**")
+                st.markdown(f"Model: {cvd_data.get('model_used', 'Framingham Risk Score')}")
+            with col2:
+                st.markdown("#### Risk Categories")
+                st.markdown("""
+                - **Low Risk**: <7.5%
+                - **Intermediate**: 7.5-20%
+                - **High Risk**: >20%
+                """)
+            
+            # Recommendations
+            if cvd_data.get('recommendations'):
+                st.markdown("#### 📝 Clinical Recommendations")
+                for rec in cvd_data['recommendations']:
+                    st.markdown(f"• {rec}")
+        else:
+            st.warning("Cardiovascular risk assessment requires more patient information")
+    
+    with tech_tab:
+        st.markdown("#### Technical Information")
+        overall_data = health_predictions.get('overall', {})
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Extraction Details**")
+            st.markdown(f"Method: **{metadata.get('method', 'Unknown')}**")
+            st.markdown(f"Source: **{results.get('source', 'Unknown')}**")
+            st.markdown(f"Signal Quality: **{metadata.get('quality_score', 0)*100:.0f}%**")
+            st.markdown(f"Duration: **{metadata.get('duration', 0):.1f}s**")
+        with col2:
+            st.markdown("**Data Completeness**")
+            completeness = overall_data.get('data_completeness', 0.3)
+            st.markdown(f"Patient Info: **{completeness*100:.0f}%** complete")
+            st.markdown(f"Processing Method: **{overall_data.get('method', 'PaPaGei + rPPG')}**")
+            if overall_data.get('error'):
+                st.error(f"Processing Error: {overall_data['error']}")
     
     # PPG signal visualization
     st.subheader("📈 PPG Signal Visualization")

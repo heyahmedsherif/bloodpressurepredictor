@@ -1,3 +1,9 @@
 [submodule "external/rppg-toolbox"]
 	path = external/rppg-toolbox
 	url = https://github.com/ubicomplab/rPPG-Toolbox.git
+[submodule "external/glucose-prediction"]
+	path = external/glucose-prediction
+	url = https://github.com/yasirsaleem502/Predict-Blood-Glucose-Level-Based-on-PPG-Signals.git
+[submodule "external/cholesterol-cvd-prediction"]
+	path = external/cholesterol-cvd-prediction
+	url = https://github.com/Apaulgithub/Cardiovascular_Risk_Prediction.git

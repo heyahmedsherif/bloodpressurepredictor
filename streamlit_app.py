@@ -25,7 +25,7 @@ def main():
         "Choose Application:",
         [
             "Realistic BP Predictor (Recommended)",
-            "📹 Camera BP Predictor (NEW!)",
+            "📹 Camera Health Predictor (NEW!)",
             "Extended BP Predictor", 
             "PPG Signal Processor"
         ]
@@ -42,9 +42,9 @@ def main():
             st.error(f"Import error: {e}")
             st.error("Please ensure all dependencies are installed")
             
-    elif app_choice == "📹 Camera BP Predictor (NEW!)":
+    elif app_choice == "📹 Camera Health Predictor (NEW!)":
         st.markdown("---")
-        st.info("📹 **Camera-Based**: Extract PPG from camera using rPPG-Toolbox + PaPaGei")
+        st.info("📹 **Camera-Based Health Suite**: Extract PPG from camera + predict BP, glucose, cardiovascular risk")
         try:
             from src.apps.camera_bp_predictor import main as camera_main
             camera_main()
