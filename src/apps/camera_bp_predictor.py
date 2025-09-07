@@ -804,8 +804,11 @@ def predict_unified_health_metrics(papagei_data: Dict[str, Any], patient_info: D
         # Cardiovascular Risk Prediction
         try:
             cvd_result = cardiovascular_predictor.predict_from_papagei_format(unified_data)
+            logger.info(f"CVD prediction successful: {cvd_result}")
         except Exception as e:
-            logger.warning(f"Cardiovascular prediction failed: {e}")
+            logger.error(f"Cardiovascular prediction failed: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             cvd_result = {
                 '10_year_chd_risk_probability': 'N/A',
                 'risk_category': 'Assessment unavailable',
