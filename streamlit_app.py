@@ -17,21 +17,32 @@ st.set_page_config(
 )
 
 def main():
-    st.title("🩺 Blood Pressure Predictor Suite")
-    st.markdown("*Powered by PaPaGei Foundation Model*")
+    st.title("🩺 Comprehensive Health Prediction Suite")
+    st.markdown("*Powered by PaPaGei Foundation Model + Advanced ML*")
+    st.markdown("📹 **Camera Health Assessment** • 🩺 **Blood Pressure** • 🍯 **Glucose** • ❤️ **Cardiovascular Risk**")
     
     # App selection
     app_choice = st.selectbox(
         "Choose Application:",
         [
-            "Realistic BP Predictor (Recommended)",
             "📹 Camera Health Predictor (NEW!)",
+            "Realistic BP Predictor (Recommended)",
             "Extended BP Predictor", 
             "PPG Signal Processor"
         ]
     )
     
-    if app_choice == "Realistic BP Predictor (Recommended)":
+    if app_choice == "📹 Camera Health Predictor (NEW!)":
+        st.markdown("---")
+        st.info("📹 **Camera-Based Health Suite**: Extract PPG from camera + predict BP, glucose, cardiovascular risk")
+        try:
+            from src.apps.camera_bp_predictor import main as camera_main
+            camera_main()
+        except ImportError as e:
+            st.error(f"Camera Health Predictor not available: {e}")
+            st.error("Please install rPPG-Toolbox dependencies: cd external/rppg-toolbox && bash setup.sh conda")
+            
+    elif app_choice == "Realistic BP Predictor (Recommended)":
         st.markdown("---")
         st.info("🎯 **Most Accurate**: Uses only clinically available features for real-world deployment")
         # Import and run the realistic BP predictor
@@ -41,16 +52,6 @@ def main():
         except ImportError as e:
             st.error(f"Import error: {e}")
             st.error("Please ensure all dependencies are installed")
-            
-    elif app_choice == "📹 Camera Health Predictor (NEW!)":
-        st.markdown("---")
-        st.info("📹 **Camera-Based Health Suite**: Extract PPG from camera + predict BP, glucose, cardiovascular risk")
-        try:
-            from src.apps.camera_bp_predictor import main as camera_main
-            camera_main()
-        except ImportError as e:
-            st.error(f"Camera BP Predictor not available: {e}")
-            st.error("Please install rPPG-Toolbox dependencies: cd external/rppg-toolbox && bash setup.sh conda")
             
     elif app_choice == "Extended BP Predictor":
         st.markdown("---")
