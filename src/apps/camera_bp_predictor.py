@@ -49,10 +49,17 @@ try:
     except ImportError:
         RPPG_TOOLBOX_AVAILABLE = False
     
-    # WebRTC camera support (works on Streamlit Cloud)
+    # Real WebRTC camera support (works on Streamlit Cloud with TURN servers)
     try:
-        from src.core.webrtc_camera import create_webrtc_camera_interface, WEBRTC_AVAILABLE
-        WEBRTC_CAMERA_AVAILABLE = WEBRTC_AVAILABLE
+        from src.core.real_webrtc_camera import create_real_webrtc_ppg_interface, WEBRTC_AVAILABLE
+        REAL_WEBRTC_AVAILABLE = WEBRTC_AVAILABLE
+    except ImportError:
+        REAL_WEBRTC_AVAILABLE = False
+        
+    # Fallback WebRTC camera support  
+    try:
+        from src.core.webrtc_camera import create_webrtc_camera_interface
+        WEBRTC_CAMERA_AVAILABLE = True
     except ImportError:
         WEBRTC_CAMERA_AVAILABLE = False
     
@@ -140,16 +147,20 @@ def main():
     st.markdown("🩺 **Blood Pressure** • 🍯 **Glucose** • 🧪 **Cholesterol** • ❤️ **Cardiovascular Risk**")
     
     # Check what's available
+    real_webrtc_available = REAL_WEBRTC_AVAILABLE
     webrtc_available = WEBRTC_CAMERA_AVAILABLE
     simple_camera_available = SIMPLE_CAMERA_AVAILABLE
     rppg_toolbox_available = RPPG_TOOLBOX_AVAILABLE
     
-    if webrtc_available:
-        st.success("🌐 **WebRTC Camera Available** - Real-time camera access works on Streamlit Cloud!")
+    if real_webrtc_available:
+        st.success("🔬 **Real PPG Extraction Available** - WebRTC with TURN servers works on Streamlit Cloud!")
+        st.info("✨ **This extracts REAL physiological signals** from camera using advanced rPPG algorithms")
+    elif webrtc_available:
+        st.info("🌐 **Basic WebRTC Available** - May work with proper network configuration")
     elif simple_camera_available:
-        st.info("📸 **Simple Camera Available** - Photo-based analysis works on all platforms!")
+        st.warning("📸 **Photo-only mode Available** - Limited to single photo analysis")
     elif rppg_toolbox_available:
-        st.warning("🖥️ **Traditional Camera Available** - Works locally but may not work on cloud platforms.")
+        st.warning("🖥️ **Traditional Camera Available** - Works locally but not on cloud platforms")
     else:
         st.error("⚠️ No camera functionality available. Please check your installation.")
         return
@@ -487,10 +498,12 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
     
     # Build available options
     camera_options = []
+    if REAL_WEBRTC_AVAILABLE:
+        camera_options.append("🔬 Real PPG Extraction (WebRTC + TURN)")
     if WEBRTC_CAMERA_AVAILABLE:
-        camera_options.append("🌐 WebRTC Camera (Real-time)")
+        camera_options.append("🌐 Basic WebRTC (May need configuration)")
     if SIMPLE_CAMERA_AVAILABLE:
-        camera_options.append("📸 Simple Camera (Photo-based)")
+        camera_options.append("📸 Photo Analysis (Synthetic PPG)")
     if RPPG_TOOLBOX_AVAILABLE:
         camera_options.append("🖥️ Traditional Camera (Local Only)")
     
@@ -507,12 +520,29 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
         st.error("No camera modes available")
         return
     
-    # WebRTC Camera Interface
-    if camera_mode == "🌐 WebRTC Camera (Real-time)":
+    # Real PPG Extraction Interface
+    if camera_mode == "🔬 Real PPG Extraction (WebRTC + TURN)":
         st.markdown("---")
-        st.info("🌐 **Using WebRTC Technology**: Real-time camera access that works on Streamlit Cloud!")
+        st.success("🔬 **REAL PPG Extraction Mode**: Extracting actual physiological signals from camera!")
+        st.info("🩸 This uses advanced rPPG algorithms (CHROM) to detect real blood flow changes in your face")
         
-        # Use WebRTC interface
+        # Use real WebRTC PPG interface
+        ppg_result, ppg_metadata = create_real_webrtc_ppg_interface(duration)
+        
+        if ppg_result is not None:
+            # Process the REAL PPG signal through PaPaGei pipeline
+            with st.spinner("🧠 Processing REAL PPG signal through PaPaGei models..."):
+                process_webrtc_ppg_predictions(ppg_result, ppg_metadata, method, duration)
+        
+        return  # Skip other camera interfaces
+    
+    # Basic WebRTC Camera Interface
+    elif camera_mode == "🌐 Basic WebRTC (May need configuration)":
+        st.markdown("---")
+        st.info("🌐 **Using Basic WebRTC**: May work with proper network configuration")
+        st.warning("⚠️ This mode may not work on all networks - try Real PPG Extraction mode instead")
+        
+        # Use basic WebRTC interface
         ppg_result, ppg_metadata = create_webrtc_camera_interface(duration)
         
         if ppg_result is not None:
@@ -523,9 +553,10 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
         return  # Skip other camera interfaces
     
     # Simple Camera Interface  
-    elif camera_mode == "📸 Simple Camera (Photo-based)":
+    elif camera_mode == "📸 Photo Analysis (Synthetic PPG)":
         st.markdown("---")
-        st.info("📸 **Using Simple Camera**: Photo-based analysis that works on all platforms!")
+        st.warning("📸 **Photo Analysis Mode**: Uses synthetic PPG generation from single photo")
+        st.info("⚠️ **Note**: This generates synthetic PPG signals for demonstration - not real physiological data")
         
         # Use simple camera interface
         ppg_result, ppg_metadata = create_simple_camera_interface(duration)

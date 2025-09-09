@@ -1,5 +1,5 @@
 # Blood Pressure Predictor - Streamlit Cloud Requirements  
-# Essential dependencies for core functionality
+# Real PPG extraction with WebRTC support
 
 # Core Streamlit and ML packages
 streamlit
@@ -21,17 +21,16 @@ yacs
 # Camera support (OpenCV for basic functionality)
 opencv-python-headless
 
-# Try to include PyTorch (CPU version for better compatibility)  
+# PyTorch (CPU version for better compatibility)  
 torch
 torchvision
 
-# Optional: Advanced ML (only if cloud supports)
-# torch
-# torchvision
+# Real WebRTC camera support (works with proper TURN configuration)
+streamlit-webrtc>=0.47.0
+aiortc>=1.6.0
 
-# WebRTC camera (requires system dependencies not available on Streamlit Cloud)
-# streamlit-webrtc>=0.47.0
-# aiortc==1.6.0
+# Twilio for TURN server support
+twilio
 
 # Optional torch/ML - only if needed for advanced features
 # torch>=2.1.0
