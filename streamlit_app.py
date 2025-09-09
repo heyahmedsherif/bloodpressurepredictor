@@ -62,8 +62,15 @@ def main():
             from src.apps.realistic_bp_predictor import main as realistic_main
             realistic_main()
         except ImportError as e:
-            st.error(f"Import error: {e}")
-            st.error("Please ensure all dependencies are installed")
+            st.error("🚫 **Dependency Issue**: Some packages are still building on Streamlit Cloud")
+            st.warning("⏳ **Please wait 2-3 minutes** and refresh the page - Streamlit Cloud is installing dependencies")
+            st.info("""
+            **If the issue persists**:
+            - This is likely a Python 3.13 + pandas compilation issue
+            - The app will work once all packages are installed
+            - Try refreshing in a few minutes
+            """)
+            st.code(f"Technical details: {e}", language="python")
             
     elif app_choice == "Extended BP Predictor":
         st.markdown("---")

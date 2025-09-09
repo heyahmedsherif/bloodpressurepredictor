@@ -1,0 +1,7 @@
+# Absolute minimal requirements for Streamlit Cloud
+# Only core packages that are guaranteed to work
+
+streamlit
+numpy
+pandas
+scikit-learn
