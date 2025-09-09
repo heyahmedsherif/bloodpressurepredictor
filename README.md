@@ -16,12 +16,36 @@
 
 A **revolutionary unified health prediction system** powered by **100% machine learning** that extracts multiple physiological measurements from a simple camera recording. Using state-of-the-art remote photoplethysmography (rPPG) and Nokia Bell Labs' **PaPaGei ResNet1D foundation model**, this suite provides comprehensive cardiovascular health assessment including **blood pressure**, **glucose levels**, **cholesterol**, and **10-year cardiovascular risk** - all from contactless video analysis with **zero hardcoded rules**.
 
-## 🚀 **Quick Deploy to Streamlit Cloud**
+## 🚀 **Quick Start**
 
-1. **Fork this repository**
-2. **Connect to Streamlit Cloud**: https://share.streamlit.io
-3. **Deploy**: Select `streamlit_app.py` as main file
-4. **Done!** ✅
+### **🖥️ Local Development (Recommended)**
+```bash
+# Clone the repository
+git clone https://github.com/heyahmedsherif/bloodpressurepredictor.git
+cd bloodpressurepredictor
+
+# Run setup script
+./setup_local.sh  # On Mac/Linux
+# OR
+setup_local.bat   # On Windows
+
+# Start the app
+streamlit run streamlit_app.py
+```
+
+**✅ Local Benefits**: All camera modes work, no Twilio setup needed, full OpenCV support
+
+### **🌐 Deploy to Streamlit Cloud**
+1. **Fork this repository** 
+2. **Get Twilio Account** (free): https://www.twilio.com/try-twilio
+3. **Connect to Streamlit Cloud**: https://share.streamlit.io
+4. **Add Secrets**: 
+   ```
+   TWILIO_ACCOUNT_SID = "your_sid"
+   TWILIO_AUTH_TOKEN = "your_token"
+   ```
+5. **Deploy**: Select `streamlit_app.py` as main file
+6. **✅ Real PPG Extraction Available!**
 
 ## 📱 **Applications Available**
 

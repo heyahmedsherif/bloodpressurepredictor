@@ -1,5 +1,5 @@
-# Blood Pressure Predictor - Streamlit Cloud Requirements  
-# Real PPG extraction with WebRTC support
+# Streamlit Cloud Requirements
+# Optimized for cloud deployment with network-compatible dependencies
 
 # Core Streamlit and ML packages
 streamlit

@@ -1,0 +1,40 @@
+# Local Development Requirements
+# Full functionality with all camera modes and dependencies
+
+# Core Streamlit and ML packages
+streamlit
+numpy
+pandas
+scikit-learn
+
+# Visualization
+matplotlib
+plotly
+scipy
+joblib
+
+# Essential ML dependencies
+tqdm
+PyYAML
+yacs
+
+# Camera support - full OpenCV with GUI support for local development
+opencv-python
+
+# PyTorch for ML models
+torch
+torchvision
+
+# Real WebRTC camera support (works locally without TURN servers)
+streamlit-webrtc>=0.47.0
+aiortc>=1.6.0
+
+# For local development - these may not work on cloud
+av
+
+# Optional: Twilio for testing cloud functionality locally
+twilio
+
+# Additional packages that may be useful locally
+pillow
+scipy
