@@ -639,7 +639,11 @@ class PaPaGeiCholesterolPredictor:
             cholesterol_pred = self.model.predict(features_scaled)[0]
             
             # Ensure physiological range (typical range: 120-350 mg/dL)
-            cholesterol_pred = np.clip(cholesterol_pred, 120, 300)
+            # More conservative range for synthetic PPG to avoid unrealistic values
+            if 'synthetic' in str(demographic_info.get('method', '')).lower():
+                cholesterol_pred = np.clip(cholesterol_pred, 150, 250)  # Conservative range for synthetic
+            else:
+                cholesterol_pred = np.clip(cholesterol_pred, 120, 300)  # Full range for real PPG
             
             # Calculate confidence based on model performance and signal quality
             confidence = self._calculate_cholesterol_confidence(ppg_signal, combined_features)

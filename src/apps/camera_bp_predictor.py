@@ -1762,11 +1762,17 @@ def process_webrtc_ppg_predictions(ppg_signal: np.ndarray, metadata: Dict[str, A
         
         st.success("🎉 WebRTC camera PPG extraction and health prediction completed!")
         
+        # Show warnings for synthetic PPG
+        if metadata.get('synthetic_warning'):
+            st.error("⚠️ **SYNTHETIC PPG RESULTS** - These predictions may be unrealistic!")
+            st.warning("🔬 **For accurate health predictions, use 'Real PPG Extraction' mode with video**")
+            st.info("📸 Photo mode is for demonstration only - results are not medically reliable")
+        
         # Show extraction method info
         if metadata.get('note'):
             st.info(f"ℹ️ {metadata['note']}")
         
-        # Display quick results
+        # Display results with warnings
         display_unified_results(health_predictions, metadata)
         
         # Show WebRTC specific stats

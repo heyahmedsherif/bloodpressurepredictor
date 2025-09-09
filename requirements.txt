@@ -27,7 +27,8 @@ torchvision
 
 # Real WebRTC camera support (works with proper TURN configuration)
 streamlit-webrtc>=0.47.0
-aiortc>=1.6.0
+aioice-no-netifaces
+aiortc==1.6.0
 
 # Twilio for TURN server support
 twilio

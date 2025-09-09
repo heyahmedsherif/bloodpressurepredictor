@@ -70,7 +70,9 @@ def create_simple_camera_interface(duration: float = 30.0) -> Tuple[Optional[np.
                         'image_size': image_array.shape,
                         'sampling_rate': 125.0,
                         'duration': duration,
-                        'note': 'PPG generated from photo analysis with synthetic modeling'
+                        'note': 'PPG generated from photo analysis with synthetic modeling',
+                        'synthetic_warning': True,
+                        'accuracy_warning': 'Results may be unrealistic - this uses synthetic PPG generation'
                     }
                     
                     return ppg_signal, metadata
