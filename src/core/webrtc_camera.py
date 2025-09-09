@@ -24,6 +24,8 @@ try:
     from streamlit_webrtc import VideoTransformerBase, webrtc_streamer, WebRtcMode, RTCConfiguration
     import av
     WEBRTC_AVAILABLE = True
+    # Type annotations when av is available
+    VideoFrame = av.VideoFrame
 except ImportError as e:
     logging.warning(f"streamlit-webrtc not available: {e}")
     WEBRTC_AVAILABLE = False
@@ -45,6 +47,15 @@ except ImportError as e:
     def webrtc_streamer(*args, **kwargs):
         """Dummy webrtc_streamer function"""
         return None
+    
+    # Dummy type annotation when av is not available
+    class VideoFrame:
+        @classmethod
+        def from_ndarray(cls, img, format=None):
+            return cls()
+        
+        def to_ndarray(self, format=None):
+            return np.zeros((480, 640, 3), dtype=np.uint8)  # Dummy array
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -77,9 +88,12 @@ class PPGVideoProcessor(VideoTransformerBase):
         except Exception as e:
             logger.warning(f"Could not load face cascade: {e}")
     
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+    def recv(self, frame: VideoFrame) -> VideoFrame:
         """Process incoming video frames"""
-        # Convert to numpy array
+        if not WEBRTC_AVAILABLE:
+            return frame  # Return as-is if WebRTC not available
+        
+        # Convert to numpy array (only works when av is available)
         img = frame.to_ndarray(format="bgr24")
         
         if self.recording and self.start_time:
@@ -88,7 +102,7 @@ class PPGVideoProcessor(VideoTransformerBase):
             # Stop recording after target duration
             if elapsed >= self.target_duration:
                 self.recording = False
-                return av.VideoFrame.from_ndarray(img, format="bgr24")
+                return VideoFrame.from_ndarray(img, format="bgr24") if WEBRTC_AVAILABLE else frame
             
             # Detect face ROI for PPG
             roi_detected, confidence = self._detect_face_roi(img)
@@ -125,7 +139,7 @@ class PPGVideoProcessor(VideoTransformerBase):
             else:
                 img = self._draw_preview_instructions(img)
         
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
+        return VideoFrame.from_ndarray(img, format="bgr24") if WEBRTC_AVAILABLE else frame
     
     def start_recording(self, duration: float = 30.0):
         """Start PPG recording session"""
