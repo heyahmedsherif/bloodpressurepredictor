@@ -52,9 +52,16 @@ try:
     # WebRTC camera support (works on Streamlit Cloud)
     try:
         from src.core.webrtc_camera import create_webrtc_camera_interface, WEBRTC_AVAILABLE
-        WEBRTC_CAMERA_AVAILABLE = True
+        WEBRTC_CAMERA_AVAILABLE = WEBRTC_AVAILABLE
     except ImportError:
         WEBRTC_CAMERA_AVAILABLE = False
+    
+    # Simple camera support (always works on Streamlit Cloud)
+    try:
+        from src.core.simple_camera import create_simple_camera_interface
+        SIMPLE_CAMERA_AVAILABLE = True
+    except ImportError:
+        SIMPLE_CAMERA_AVAILABLE = False
         
     try:
         from src.core.preprocessing.ppg import preprocess_one_ppg_signal
@@ -133,16 +140,18 @@ def main():
     st.markdown("🩺 **Blood Pressure** • 🍯 **Glucose** • 🧪 **Cholesterol** • ❤️ **Cardiovascular Risk**")
     
     # Check what's available
-    webrtc_available = WEBRTC_CAMERA_AVAILABLE and WEBRTC_AVAILABLE
+    webrtc_available = WEBRTC_CAMERA_AVAILABLE
+    simple_camera_available = SIMPLE_CAMERA_AVAILABLE
     rppg_toolbox_available = RPPG_TOOLBOX_AVAILABLE
     
     if webrtc_available:
-        st.success("🌐 **WebRTC Camera Available** - Full functionality works on Streamlit Cloud!")
+        st.success("🌐 **WebRTC Camera Available** - Real-time camera access works on Streamlit Cloud!")
+    elif simple_camera_available:
+        st.info("📸 **Simple Camera Available** - Photo-based analysis works on all platforms!")
     elif rppg_toolbox_available:
-        st.info("🖥️ **Traditional Camera Available** - Works locally but may not work on cloud platforms.")
+        st.warning("🖥️ **Traditional Camera Available** - Works locally but may not work on cloud platforms.")
     else:
-        st.error("⚠️ No camera functionality available. Please install dependencies.")
-        st.info("Install streamlit-webrtc for cloud compatibility or rPPG-Toolbox for local use.")
+        st.error("⚠️ No camera functionality available. Please check your installation.")
         return
 
     
@@ -476,24 +485,32 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
     # Camera mode selection
     st.markdown("### 🎥 Camera Access Mode")
     
-    # Check what's available
-    webrtc_available = WEBRTC_CAMERA_AVAILABLE and WEBRTC_AVAILABLE
+    # Build available options
+    camera_options = []
+    if WEBRTC_CAMERA_AVAILABLE:
+        camera_options.append("🌐 WebRTC Camera (Real-time)")
+    if SIMPLE_CAMERA_AVAILABLE:
+        camera_options.append("📸 Simple Camera (Photo-based)")
+    if RPPG_TOOLBOX_AVAILABLE:
+        camera_options.append("🖥️ Traditional Camera (Local Only)")
     
-    if webrtc_available:
-        st.success("🌐 **WebRTC Camera Available** - Works on Streamlit Cloud!")
+    if len(camera_options) > 1:
         camera_mode = st.radio(
             "Choose camera mode:",
-            ["🌐 WebRTC Camera (Cloud-Compatible)", "🖥️ Traditional Camera (Local Only)"],
-            help="WebRTC works on Streamlit Cloud, Traditional only works locally"
+            camera_options,
+            help="Select the camera mode that works best for your environment"
         )
+    elif len(camera_options) == 1:
+        camera_mode = camera_options[0]
+        st.info(f"Using: **{camera_mode}**")
     else:
-        st.warning("⚠️ WebRTC not available. Using traditional camera (local only).")
-        camera_mode = "🖥️ Traditional Camera (Local Only)"
+        st.error("No camera modes available")
+        return
     
     # WebRTC Camera Interface
-    if camera_mode == "🌐 WebRTC Camera (Cloud-Compatible)":
+    if camera_mode == "🌐 WebRTC Camera (Real-time)":
         st.markdown("---")
-        st.info("🌐 **Using WebRTC Technology**: Real camera access that works on Streamlit Cloud!")
+        st.info("🌐 **Using WebRTC Technology**: Real-time camera access that works on Streamlit Cloud!")
         
         # Use WebRTC interface
         ppg_result, ppg_metadata = create_webrtc_camera_interface(duration)
@@ -503,7 +520,22 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
             with st.spinner("🧠 Processing PPG signal through PaPaGei models..."):
                 process_webrtc_ppg_predictions(ppg_result, ppg_metadata, method, duration)
         
-        return  # Skip traditional camera interface
+        return  # Skip other camera interfaces
+    
+    # Simple Camera Interface  
+    elif camera_mode == "📸 Simple Camera (Photo-based)":
+        st.markdown("---")
+        st.info("📸 **Using Simple Camera**: Photo-based analysis that works on all platforms!")
+        
+        # Use simple camera interface
+        ppg_result, ppg_metadata = create_simple_camera_interface(duration)
+        
+        if ppg_result is not None:
+            # Process the PPG signal through PaPaGei pipeline
+            with st.spinner("🧠 Processing PPG signal through PaPaGei models..."):
+                process_webrtc_ppg_predictions(ppg_result, ppg_metadata, method, duration)
+        
+        return  # Skip other camera interfaces
     
     # Traditional camera interface (original code)
     st.markdown("---")

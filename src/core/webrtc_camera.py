@@ -27,6 +27,24 @@ try:
 except ImportError as e:
     logging.warning(f"streamlit-webrtc not available: {e}")
     WEBRTC_AVAILABLE = False
+    
+    # Create dummy classes to prevent import errors
+    class VideoTransformerBase:
+        def __init__(self):
+            pass
+        def recv(self, frame):
+            return frame
+    
+    class WebRtcMode:
+        SENDRECV = "sendrecv"
+    
+    class RTCConfiguration:
+        def __init__(self, config):
+            pass
+    
+    def webrtc_streamer(*args, **kwargs):
+        """Dummy webrtc_streamer function"""
+        return None
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -358,8 +376,26 @@ def create_webrtc_camera_interface(duration: float = 30.0) -> Tuple[Optional[np.
     Create WebRTC camera interface for PPG recording
     """
     if not WEBRTC_AVAILABLE:
-        st.error("🚫 WebRTC not available. Please install streamlit-webrtc")
-        return None, {'error': 'webrtc_unavailable'}
+        st.error("🚫 **WebRTC Camera Not Available on Streamlit Cloud**")
+        st.warning("⚠️ **System Dependencies Missing**: WebRTC requires system packages (pkg-config, ffmpeg) not available in this cloud environment.")
+        st.info("""
+        **Available Options**:
+        - 🎯 **Use "Realistic BP Predictor"** - Works without camera by entering manual health parameters
+        - 📱 **Run Locally** - Full camera functionality available when running on your computer
+        - 🌐 **Alternative Platforms** - Consider Railway, Render, or Fly.io for full camera support
+        """)
+        
+        # Generate synthetic PPG for demonstration
+        st.markdown("---")
+        st.info("🔬 **Demo Mode**: Generating synthetic PPG signal for demonstration...")
+        synthetic_ppg = _generate_synthetic_ppg(duration, 30.0)
+        return synthetic_ppg, {
+            'method': 'synthetic_demo',
+            'heart_rate': 75.0,
+            'quality_score': 0.8,
+            'note': 'Synthetic PPG generated - WebRTC not available on this platform',
+            'demo_mode': True
+        }
     
     # WebRTC configuration for cloud deployment
     rtc_configuration = RTCConfiguration({
