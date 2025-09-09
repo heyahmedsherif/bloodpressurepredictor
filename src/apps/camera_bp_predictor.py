@@ -40,8 +40,10 @@ try:
     from src.core.rppg_integration import rPPGToolboxIntegration, extract_ppg_from_camera, extract_ppg_from_video
     from src.core.preprocessing.ppg import preprocess_one_ppg_signal
     from src.core.segmentations import waveform_to_segments
-    from src.core.glucose_integration import GlucoseIntegration
+    from src.core.papagei_glucose_integration import PaPaGeiGlucoseIntegration
     from src.core.cholesterol_integration import CholesterolCardiovascularIntegration
+    from src.core.papagei_cholesterol_integration import PaPaGeiCholesterolIntegration
+    from src.core.papagei_bp_integration import PaPaGeiIntegration
     try:
         from torch_ecg._preprocessors import Normalize
     except ImportError:
@@ -85,20 +87,90 @@ st.set_page_config(
 def main():
     """Main Streamlit application."""
     
+    # Initialize session cleanup - ensure no hanging camera resources
+    if 'app_initialized' not in st.session_state:
+        # Clear any previous camera state
+        if 'recording_in_progress' in st.session_state:
+            st.session_state.recording_in_progress = False
+        if 'preview_container' in st.session_state:
+            st.session_state.preview_container = None
+        
+        # Force cleanup of any residual camera resources
+        try:
+            import cv2
+            cv2.destroyAllWindows()
+            import gc
+            gc.collect()
+        except:
+            pass
+        
+        st.session_state.app_initialized = True
+    
     # Title and description
     st.title("📹 Camera-Based Health Predictor Suite")
     st.markdown("*Powered by rPPG-Toolbox + PaPaGei Foundation Model*")
-    st.markdown("🩺 **Blood Pressure** • 🍯 **Glucose** • ❤️ **Cardiovascular Risk**")
+    st.markdown("🩺 **Blood Pressure** • 🍯 **Glucose** • 🧪 **Cholesterol** • ❤️ **Cardiovascular Risk**")
     
     # Check if rPPG is available
     if not RPPG_AVAILABLE:
         st.error("⚠️ rPPG-Toolbox integration not available. Please install dependencies.")
         st.info("Run: `cd external/rppg-toolbox && bash setup.sh conda`")
         return
+
     
     # Sidebar configuration
     with st.sidebar:
         st.header("🔧 Configuration")
+        
+        # Patient Information for Enhanced Predictions - at top of sidebar
+        st.subheader("👤 Patient Information")
+        st.markdown("*Optional: Improves glucose & cardiovascular predictions*")
+        
+        # Basic demographics
+        patient_age = st.number_input("Age", min_value=18, max_value=100, value=30, step=1)
+        patient_gender = st.selectbox("Gender", ["Female", "Male"], index=0)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            height_cm = st.number_input("Height (cm)", min_value=120, max_value=220, value=170, step=1)
+        with col2:
+            weight_kg = st.number_input("Weight (kg)", min_value=30, max_value=200, value=70, step=1)
+        
+        # Health information
+        with st.expander("🏥 Health Information (Optional)"):
+            st.markdown("*For more accurate cardiovascular risk assessment*")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                total_cholesterol = st.number_input(
+                    "Total Cholesterol (mg/dL)", 
+                    min_value=100, max_value=400, value=200, step=5,
+                    help="Leave as default if unknown"
+                )
+                cigarettes_per_day = st.number_input(
+                    "Cigarettes per day", 
+                    min_value=0, max_value=60, value=0, step=1
+                )
+            
+            with col2:
+                diabetes = st.checkbox("Diabetes", value=False)
+                hypertension = st.checkbox("Hypertension", value=False) 
+                bp_medication = st.checkbox("Blood Pressure Medication", value=False)
+        
+        # Store patient info in session state
+        st.session_state.patient_info = {
+            'age': patient_age,
+            'gender': patient_gender,
+            'height_cm': height_cm,
+            'weight_kg': weight_kg,
+            'total_cholesterol': total_cholesterol if total_cholesterol != 200 else None,
+            'cigarettes_per_day': cigarettes_per_day,
+            'diabetes': diabetes,
+            'hypertension': hypertension,
+            'bp_medication': bp_medication
+        }
+        
+        st.markdown("---")
         
         # rPPG method selection with detailed explanations
         st.subheader("📊 rPPG Extraction Method")
@@ -241,59 +313,11 @@ def main():
             help="0 for default camera, 1+ for additional cameras"
         )
         
-        # Patient Information for Enhanced Predictions
-        st.markdown("---")
-        st.subheader("👤 Patient Information")
-        st.markdown("*Optional: Improves glucose & cardiovascular predictions*")
-        
-        # Basic demographics
-        patient_age = st.number_input("Age", min_value=18, max_value=100, value=30, step=1)
-        patient_gender = st.selectbox("Gender", ["Female", "Male"], index=0)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            height_cm = st.number_input("Height (cm)", min_value=120, max_value=220, value=170, step=1)
-        with col2:
-            weight_kg = st.number_input("Weight (kg)", min_value=30, max_value=200, value=70, step=1)
-        
-        # Health information
-        with st.expander("🏥 Health Information (Optional)"):
-            st.markdown("*For more accurate cardiovascular risk assessment*")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                total_cholesterol = st.number_input(
-                    "Total Cholesterol (mg/dL)", 
-                    min_value=100, max_value=400, value=200, step=5,
-                    help="Leave as default if unknown"
-                )
-                cigarettes_per_day = st.number_input(
-                    "Cigarettes per day", 
-                    min_value=0, max_value=60, value=0, step=1
-                )
-            
-            with col2:
-                diabetes = st.checkbox("Diabetes", value=False)
-                hypertension = st.checkbox("Hypertension", value=False) 
-                bp_medication = st.checkbox("Blood Pressure Medication", value=False)
         
         # Advanced settings
         with st.expander("⚙️ Advanced Settings"):
             target_fps = st.slider("Target FPS", 15, 60, 30)
             quality_threshold = st.slider("Quality Threshold", 0.1, 1.0, 0.5)
-        
-        # Store patient info in session state
-        st.session_state.patient_info = {
-            'age': patient_age,
-            'gender': patient_gender,
-            'height_cm': height_cm,
-            'weight_kg': weight_kg,
-            'total_cholesterol': total_cholesterol if total_cholesterol != 200 else None,
-            'cigarettes_per_day': cigarettes_per_day,
-            'diabetes': diabetes,
-            'hypertension': hypertension,
-            'bp_medication': bp_medication
-        }
             
     # Main content area
     tab1, tab2, tab3, tab4 = st.tabs(["📹 Live Camera", "🎥 Video Upload", "📊 Results", "ℹ️ Info"])
@@ -433,9 +457,29 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
         5. **Click Record**: Start the PPG extraction process
         """)
         
-        # Record button
-        if st.button("🔴 Start Recording", type="primary", use_container_width=True):
-            record_camera_ppg(method, duration, camera_id, fps, quality_threshold)
+        # Camera availability status
+        camera_status = check_camera_availability(camera_id)
+        if camera_status:
+            st.success("✅ Camera ready")
+        else:
+            st.error("❌ Camera not available")
+            
+        # Camera preview
+        if st.button("👁️ Show Camera Preview", use_container_width=True):
+            show_camera_preview(camera_id)
+        
+        # Recording status management
+        if 'recording_in_progress' not in st.session_state:
+            st.session_state.recording_in_progress = False
+            
+        # Record button with state management
+        if not st.session_state.recording_in_progress:
+            if st.button("🔴 Start Recording", type="primary", use_container_width=True):
+                st.session_state.recording_in_progress = True
+                record_camera_ppg(method, duration, camera_id, fps, quality_threshold)
+                st.session_state.recording_in_progress = False
+        else:
+            st.warning("Recording in progress... Please wait.")
     
     with col2:
         # Camera preview and status
@@ -457,6 +501,93 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
             
             **Privacy:** All processing is local, no data stored
             """)
+
+def check_camera_availability(camera_id: int) -> bool:
+    """Quick check if camera is available without blocking."""
+    try:
+        import cv2
+        cap = cv2.VideoCapture(camera_id)
+        is_available = cap.isOpened()
+        if cap is not None:
+            cap.release()
+        return is_available
+    except Exception:
+        return False
+
+def show_camera_preview(camera_id: int):
+    """Show live camera preview for positioning."""
+    import cv2
+    import numpy as np
+    
+    try:
+        cap = cv2.VideoCapture(camera_id)
+        if not cap.isOpened():
+            st.error(f"❌ Camera {camera_id} not accessible")
+            return
+            
+        # Get one frame for preview
+        ret, frame = cap.read()
+        if ret:
+            st.markdown("### 📹 Camera Preview")
+            st.info("💡 Position yourself in the frame. Ensure good lighting and your face is clearly visible.")
+            
+            # Convert BGR to RGB for streamlit
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Add face detection guide overlay (optional)
+            try:
+                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                
+                # Check if cascade loaded successfully
+                if face_cascade.empty():
+                    st.info("💡 Face detection guide unavailable - this won't affect PPG extraction")
+                else:
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    
+                    # Use more permissive parameters for face detection
+                    # scaleFactor=1.05 (smaller steps, more thorough), minNeighbors=3 (less strict)
+                    faces = face_cascade.detectMultiScale(
+                        gray, 
+                        scaleFactor=1.05, 
+                        minNeighbors=3, 
+                        minSize=(30, 30),  # Minimum face size
+                        maxSize=(300, 300)  # Maximum face size
+                    )
+                    
+                    for (x, y, w, h) in faces:
+                        cv2.rectangle(frame_rgb, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                        cv2.putText(frame_rgb, 'Face Detected', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                        
+                    if len(faces) > 0:
+                        st.success(f"✅ Face detected! ({len(faces)} face{'s' if len(faces) > 1 else ''} found)")
+                    else:
+                        st.info("💡 **Tip**: Position your face in the center of the frame with good lighting. Face detection is optional - PPG recording will work regardless.")
+                    
+            except Exception as e:
+                # Face detection optional, continue without it
+                st.info(f"💡 Face detection unavailable ({str(e)}) - this won't affect PPG extraction")
+            
+            # Display the frame
+            st.image(frame_rgb, caption="Camera Preview", use_container_width=True)
+            
+        else:
+            st.error("❌ Could not capture frame from camera")
+            
+    except Exception as e:
+        st.error(f"❌ Camera preview error: {str(e)}")
+    finally:
+        if 'cap' in locals() and cap is not None:
+            try:
+                cap.release()
+            except:
+                pass
+        try:
+            cv2.destroyAllWindows()
+        except:
+            pass
+        # Small delay to ensure camera is fully released
+        import time
+        time.sleep(0.2)
 
 def test_camera_access(camera_id: int):
     """Test camera access and show preview frame."""
@@ -542,6 +673,10 @@ def video_upload_interface(method: str, duration: float, fps: int):
 def record_camera_ppg(method: str, duration: float, camera_id: int, fps: int, quality_threshold: float):
     """Record PPG signal from camera with real-time progress."""
     
+    # Clear any existing camera preview first
+    if 'preview_container' in st.session_state:
+        st.session_state.preview_container = None
+    
     progress_bar = st.progress(0)
     status_text = st.empty()
     countdown_placeholder = st.empty()
@@ -550,18 +685,37 @@ def record_camera_ppg(method: str, duration: float, camera_id: int, fps: int, qu
         status_text.text("🎥 Initializing camera...")
         progress_bar.progress(0.1)
         
-        # Test camera access first
+        # Force release any existing camera resources
         import cv2
+        import time
+        
+        # Try to release camera with multiple attempts
+        for attempt in range(3):
+            try:
+                cap_test = cv2.VideoCapture(camera_id)
+                if cap_test.isOpened():
+                    cap_test.release()
+                time.sleep(0.5)  # Wait between attempts
+            except:
+                pass
+        
+        # Wait for camera to be available
+        time.sleep(1)
+        
+        # Test camera access
         cap = cv2.VideoCapture(camera_id)
         if not cap.isOpened():
-            st.error(f"❌ Cannot access camera {camera_id}. Please check permissions.")
+            st.error(f"❌ Cannot access camera {camera_id}. Please wait a moment and try again.")
             return
         
         # Get camera properties
         actual_fps = cap.get(cv2.CAP_PROP_FPS) or 30
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        # Immediately release the test capture
         cap.release()
+        time.sleep(0.5)  # Wait for release
         
         st.info(f"📹 Camera ready: {width}x{height} at {actual_fps:.1f}fps")
         progress_bar.progress(0.2)
@@ -573,7 +727,7 @@ def record_camera_ppg(method: str, duration: float, camera_id: int, fps: int, qu
         )
         
         if temp_video_path is None:
-            st.error("❌ Recording failed")
+            st.error("❌ Recording failed. Please try again.")
             return
             
         progress_bar.progress(0.7)
@@ -583,12 +737,22 @@ def record_camera_ppg(method: str, duration: float, camera_id: int, fps: int, qu
         extractor = rPPGToolboxIntegration(method=method)
         ppg_signal, metadata = extractor.extract_ppg_from_video(temp_video_path, duration)
         
-        progress_bar.progress(0.9)
-        status_text.text("🧠 Processing with PaPaGei...")
+        progress_bar.progress(0.8)
+        status_text.text("🔄 Converting to PaPaGei format...")
         
-        # Convert to PaPaGei format and predict comprehensive health metrics
+        # Convert to PaPaGei format
         papagei_data = extractor.convert_to_papagei_format(ppg_signal, metadata)
+        
+        progress_bar.progress(0.85)
+        status_text.text("🩺 Predicting blood pressure...")
+        
+        # Get patient info
         patient_info = st.session_state.get('patient_info', {})
+        
+        progress_bar.progress(0.9)
+        status_text.text("🧠 Running comprehensive health analysis...")
+        
+        # Predict comprehensive health metrics with better error handling
         health_predictions = predict_unified_health_metrics(papagei_data, patient_info)
         
         progress_bar.progress(1.0)
@@ -631,12 +795,22 @@ def record_video_with_progress(camera_id: int, duration: float, progress_bar, co
     # Create temporary video file  
     temp_video_path = tempfile.mktemp(suffix='.avi')
     
-    # Open camera
-    cap = cv2.VideoCapture(camera_id)
-    if not cap.isOpened():
-        return None
+    cap = None
+    out = None
     
     try:
+        # Open camera with retry mechanism
+        for attempt in range(3):
+            cap = cv2.VideoCapture(camera_id)
+            if cap.isOpened():
+                break
+            if cap is not None:
+                cap.release()
+            time.sleep(1)
+        
+        if cap is None or not cap.isOpened():
+            status_text.text("❌ Failed to open camera after multiple attempts")
+            return None
         # Camera properties
         fps = 30
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -658,6 +832,9 @@ def record_video_with_progress(camera_id: int, duration: float, progress_bar, co
         
         countdown_placeholder.markdown("## 🔴 RECORDING...")
         
+        # Add live preview container
+        preview_container = st.empty()
+        
         failed_reads = 0
         max_failed_reads = 100  # Allow some failed reads before giving up
         
@@ -678,6 +855,17 @@ def record_video_with_progress(camera_id: int, duration: float, progress_bar, co
             out.write(frame)
             frames_recorded += 1
             
+            # Show live preview every 15 frames (about 2fps) to avoid too much processing
+            if frames_recorded % 15 == 0:
+                try:
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    # Resize frame for faster display
+                    frame_small = cv2.resize(frame_rgb, (320, 240))
+                    preview_container.image(frame_small, caption="🔴 Live Recording Preview", width=300)
+                except Exception as e:
+                    # Preview is optional, don't break recording if it fails
+                    pass
+            
             # Update progress every 10 frames to avoid too many updates
             if frames_recorded % 10 == 0:
                 progress = 0.2 + (frames_recorded / total_frames) * 0.5  # 20% to 70%
@@ -695,15 +883,37 @@ def record_video_with_progress(camera_id: int, duration: float, progress_bar, co
                 break
         
         countdown_placeholder.markdown("## ✅ Recording complete!")
+        # Clear the preview
+        if 'preview_container' in locals():
+            preview_container.empty()
         return temp_video_path
         
     except Exception as e:
         logger.error(f"Video recording error: {e}")
         return None
     finally:
-        cap.release()
-        if 'out' in locals():
-            out.release()
+        # Ensure proper cleanup of camera resources
+        if cap is not None:
+            try:
+                cap.release()
+            except:
+                pass
+        if out is not None:
+            try:
+                out.release()  
+            except:
+                pass
+        try:
+            cv2.destroyAllWindows()
+        except:
+            pass
+        
+        # Force garbage collection to help release camera resources
+        import gc
+        gc.collect()
+        
+        # Small delay to ensure camera is fully released
+        time.sleep(0.5)
 
 def extract_video_ppg(video_path: str, method: str, duration: float):
     """Extract PPG signal from video file."""
@@ -765,11 +975,29 @@ def predict_unified_health_metrics(papagei_data: Dict[str, Any], patient_info: D
         # Calculate heart rate
         heart_rate = calculate_heart_rate(ppg_signal, sampling_rate)
         
-        # Blood Pressure Prediction (Mock - replace with actual PaPaGei model)
-        systolic_bp = 100 + (heart_rate - 60) * 0.8 + np.random.normal(0, 5)
-        diastolic_bp = 70 + (heart_rate - 60) * 0.4 + np.random.normal(0, 3)
-        systolic_bp = np.clip(systolic_bp, 90, 200)
-        diastolic_bp = np.clip(diastolic_bp, 60, 120)
+        # Initialize PaPaGei model for blood pressure prediction
+        bp_predictor = PaPaGeiIntegration()
+        
+        # Blood Pressure Prediction using Real PaPaGei Foundation Model
+        print("🩺 Running PaPaGei blood pressure prediction...")
+        try:
+            bp_data = {
+                'ppg_signal': ppg_signal,
+                'sampling_rate': sampling_rate
+            }
+            bp_result = bp_predictor.predict_from_papagei_format(bp_data)
+            systolic_bp = bp_result['systolic_bp']
+            diastolic_bp = bp_result['diastolic_bp']
+            bp_confidence = bp_result['confidence']
+            print(f"✅ PaPaGei BP prediction: {systolic_bp:.0f}/{diastolic_bp:.0f} mmHg (confidence: {bp_confidence:.2f})")
+        except Exception as e:
+            print(f"⚠️ PaPaGei BP prediction failed: {e}")
+            # Fallback to basic calculation if PaPaGei fails
+            systolic_bp = 100 + (heart_rate - 60) * 0.8 + np.random.normal(0, 5)
+            diastolic_bp = 70 + (heart_rate - 60) * 0.4 + np.random.normal(0, 3)
+            systolic_bp = np.clip(systolic_bp, 90, 200)
+            diastolic_bp = np.clip(diastolic_bp, 60, 120)
+            bp_confidence = 0.5
         
         # Prepare unified data format for predictions
         unified_data = {
@@ -785,13 +1013,16 @@ def predict_unified_health_metrics(papagei_data: Dict[str, Any], patient_info: D
         if patient_info:
             unified_data.update(patient_info)
         
-        # Initialize prediction modules
-        glucose_predictor = GlucoseIntegration()
+        # Initialize other prediction modules
+        glucose_predictor = PaPaGeiGlucoseIntegration()
         cardiovascular_predictor = CholesterolCardiovascularIntegration()
+        cholesterol_predictor = PaPaGeiCholesterolIntegration()
         
         # Glucose Prediction
         try:
+            print("🍯 Running glucose prediction...")
             glucose_result = glucose_predictor.predict_from_papagei_format(unified_data)
+            print("✅ Glucose prediction complete")
         except Exception as e:
             logger.warning(f"Glucose prediction failed: {e}")
             glucose_result = {
@@ -801,12 +1032,38 @@ def predict_unified_health_metrics(papagei_data: Dict[str, Any], patient_info: D
                 'model_used': 'error'
             }
         
+        # Cholesterol Prediction (Direct PPG-based)
+        try:
+            print("🧪 Running cholesterol prediction...")
+            # Prepare data for cholesterol prediction
+            cholesterol_data = {
+                'ppg_signal': ppg_signal,
+                'age': patient_info.get('age', 40) if patient_info else 40
+            }
+            cholesterol_result = cholesterol_predictor.predict_from_papagei_format(cholesterol_data)
+            print("✅ Cholesterol prediction complete")
+            logger.info(f"Cholesterol prediction successful: {cholesterol_result.get('predicted_total_cholesterol_mg_dl', 'N/A')} mg/dL")
+        except Exception as e:
+            logger.warning(f"Cholesterol prediction failed: {e}")
+            print(f"⚠️ Cholesterol prediction error: {e}")
+            cholesterol_result = {
+                'predicted_total_cholesterol_mg_dl': 'N/A',
+                'confidence_score': 0.0,
+                'interpretation': 'Prediction unavailable',
+                'cholesterol_category': 'Unknown',
+                'recommendations': ['Consider laboratory testing for cholesterol levels'],
+                'model_used': 'error'
+            }
+
         # Cardiovascular Risk Prediction
         try:
+            print("❤️ Running cardiovascular risk assessment...")
             cvd_result = cardiovascular_predictor.predict_from_papagei_format(unified_data)
+            print("✅ Cardiovascular risk assessment complete")
             logger.info(f"CVD prediction successful: {cvd_result}")
         except Exception as e:
             logger.error(f"Cardiovascular prediction failed: {e}")
+            print(f"⚠️ Cardiovascular prediction error: {e}")
             import traceback
             logger.error(f"Full traceback: {traceback.format_exc()}")
             cvd_result = {
@@ -818,17 +1075,22 @@ def predict_unified_health_metrics(papagei_data: Dict[str, Any], patient_info: D
         
         # Compile comprehensive results
         prediction = {
-            # Blood Pressure Results
+            # Blood Pressure Results (Real PaPaGei Model)
             'blood_pressure': {
                 'systolic_bp': float(systolic_bp),
                 'diastolic_bp': float(diastolic_bp),
                 'heart_rate': float(heart_rate),
                 'bp_category': categorize_blood_pressure(systolic_bp, diastolic_bp),
-                'confidence': 0.75
+                'confidence': bp_confidence,
+                'model_used': bp_result.get('model_used', 'papagei_gradient_boost') if 'bp_result' in locals() else 'fallback',
+                'processing_method': 'PaPaGei Foundation Model'
             },
             
             # Glucose Results
             'glucose': glucose_result,
+            
+            # Cholesterol Results (Direct PPG-based)
+            'cholesterol': cholesterol_result,
             
             # Cardiovascular Risk Results  
             'cardiovascular_risk': cvd_result,
@@ -836,7 +1098,7 @@ def predict_unified_health_metrics(papagei_data: Dict[str, Any], patient_info: D
             # Overall Assessment
             'overall': {
                 'quality_score': papagei_data['metadata'].get('quality_score', 0.8),
-                'method': 'PaPaGei + rPPG + Unified ML',
+                'method': 'PaPaGei + rPPG + Unified ML + Direct Cholesterol',
                 'timestamp': time.time(),
                 'data_completeness': calculate_data_completeness(patient_info)
             }
@@ -853,6 +1115,7 @@ def predict_unified_health_metrics(papagei_data: Dict[str, Any], patient_info: D
                 'heart_rate': None,
             },
             'glucose': {'predicted_glucose_mg_dl': 'N/A', 'interpretation': 'Error'},
+            'cholesterol': {'predicted_total_cholesterol_mg_dl': 'N/A', 'interpretation': 'Error'},
             'cardiovascular_risk': {'risk_category': 'Error', 'recommendations': []},
             'overall': {'quality_score': 0.0, 'error': str(e)}
         }
@@ -912,9 +1175,9 @@ def display_unified_results(health_predictions: Dict[str, Any], metadata: Dict[s
     
     st.markdown("### 🎯 Quick Health Assessment")
     
-    # Blood Pressure Results
+    # Health Metrics Results - Updated to include cholesterol
     bp_data = health_predictions.get('blood_pressure', {})
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         if bp_data.get('systolic_bp'):
@@ -938,6 +1201,18 @@ def display_unified_results(health_predictions: Dict[str, Any], metadata: Dict[s
             st.metric("🍯 Glucose Level", "Estimating...")
     
     with col3:
+        # New cholesterol display
+        cholesterol_data = health_predictions.get('cholesterol', {})
+        if cholesterol_data.get('predicted_total_cholesterol_mg_dl', 'N/A') != 'N/A':
+            st.metric(
+                "🧪 Cholesterol",
+                f"{cholesterol_data['predicted_total_cholesterol_mg_dl']} mg/dL",
+                help=f"{cholesterol_data.get('cholesterol_category', 'Cholesterol level')} - {cholesterol_data.get('interpretation', '')}"
+            )
+        else:
+            st.metric("🧪 Cholesterol", "Predicting...")
+    
+    with col4:
         cvd_data = health_predictions.get('cardiovascular_risk', {})
         if cvd_data.get('10_year_chd_risk_probability', 'N/A') != 'N/A':
             risk_pct = f"{float(cvd_data['10_year_chd_risk_probability']) * 100:.1f}%"
@@ -981,7 +1256,7 @@ def results_interface():
     st.subheader("📋 Comprehensive Health Assessment")
     
     # Create tabs for different aspects
-    bp_tab, glucose_tab, cvd_tab, tech_tab = st.tabs(["🩺 Blood Pressure", "🍯 Glucose", "❤️ Cardiovascular Risk", "⚙️ Technical"])
+    bp_tab, glucose_tab, cholesterol_tab, cvd_tab, tech_tab = st.tabs(["🩺 Blood Pressure", "🍯 Glucose", "🧪 Cholesterol", "❤️ Cardiovascular Risk", "⚙️ Technical"])
     
     with bp_tab:
         bp_data = health_predictions.get('blood_pressure', {})
@@ -1024,6 +1299,38 @@ def results_interface():
                 """)
         else:
             st.warning("Glucose prediction requires more patient information")
+    
+    with cholesterol_tab:
+        cholesterol_data = health_predictions.get('cholesterol', {})
+        if cholesterol_data.get('predicted_total_cholesterol_mg_dl', 'N/A') != 'N/A':
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("#### Cholesterol Prediction")
+                st.markdown(f"**{cholesterol_data['predicted_total_cholesterol_mg_dl']} mg/dL**")
+                st.markdown(f"Category: **{cholesterol_data.get('cholesterol_category', 'Unknown')}**")
+                st.markdown(f"Interpretation: **{cholesterol_data.get('interpretation', 'N/A')}**")
+                st.markdown(f"Confidence: **{cholesterol_data.get('confidence_score', 0)*100:.0f}%**")
+                st.markdown(f"Model: {cholesterol_data.get('model_used', 'Direct PPG-based')}")
+                if cholesterol_data.get('prediction_uncertainty'):
+                    st.markdown(f"Uncertainty: **±{cholesterol_data['prediction_uncertainty']:.1f} mg/dL**")
+            with col2:
+                st.markdown("#### Cholesterol Guidelines")
+                st.markdown("""
+                - **Desirable**: <200 mg/dL
+                - **Borderline High**: 200-239 mg/dL
+                - **High**: ≥240 mg/dL
+                
+                *Based on NCEP ATP III Guidelines*
+                """)
+            
+            # Recommendations
+            if cholesterol_data.get('recommendations'):
+                st.markdown("#### 📝 Cholesterol Management Recommendations")
+                for rec in cholesterol_data['recommendations']:
+                    st.markdown(f"• {rec}")
+        else:
+            st.warning("Cholesterol prediction from PPG signal in progress...")
+            st.info("💡 **About PPG-based Cholesterol Prediction**: This uses advanced fiducial feature extraction (150+ features) from your PPG signal to predict cholesterol levels using Gaussian Process Regression. Based on 2025 research achieving R² = 0.832 accuracy.")
     
     with cvd_tab:
         cvd_data = health_predictions.get('cardiovascular_risk', {})

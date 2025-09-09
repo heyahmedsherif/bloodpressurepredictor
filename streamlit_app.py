@@ -19,7 +19,7 @@ st.set_page_config(
 def main():
     st.title("🩺 Comprehensive Health Prediction Suite")
     st.markdown("*Powered by PaPaGei Foundation Model + Advanced ML*")
-    st.markdown("📹 **Camera Health Assessment** • 🩺 **Blood Pressure** • 🍯 **Glucose** • ❤️ **Cardiovascular Risk**")
+    st.markdown("📹 **Camera Health Assessment** • 🩺 **Blood Pressure** • 🍯 **Glucose** • 🧪 **Cholesterol** • ❤️ **Cardiovascular Risk**")
     
     # App selection
     app_choice = st.selectbox(
@@ -34,7 +34,7 @@ def main():
     
     if app_choice == "📹 Camera Health Predictor (NEW!)":
         st.markdown("---")
-        st.info("📹 **Camera-Based Health Suite**: Extract PPG from camera + predict BP, glucose, cardiovascular risk")
+        st.info("📹 **Camera-Based Health Suite**: Extract PPG from camera + predict BP, glucose, cholesterol, cardiovascular risk")
         try:
             from src.apps.camera_bp_predictor import main as camera_main
             camera_main()
