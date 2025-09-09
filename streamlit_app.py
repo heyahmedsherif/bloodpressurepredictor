@@ -39,8 +39,20 @@ def main():
             from src.apps.camera_bp_predictor import main as camera_main
             camera_main()
         except ImportError as e:
-            st.error(f"Camera Health Predictor not available: {e}")
-            st.error("Please install rPPG-Toolbox dependencies: cd external/rppg-toolbox && bash setup.sh conda")
+            st.error("🚫 **Camera Health Predictor not available on Streamlit Cloud**")
+            st.warning("⚡ **Quick Fix**: Try the **Realistic BP Predictor** instead - it provides the core blood pressure prediction functionality!")
+            st.info("""
+            **Why this happens**: Camera features require additional dependencies (OpenCV, PyTorch, rPPG-Toolbox) 
+            that may not be available in all cloud environments.
+            
+            **Alternatives**:
+            - 🎯 **Realistic BP Predictor**: Core BP prediction with manual input
+            - 🔬 **Extended BP Predictor**: Advanced features with lifestyle factors
+            - 📊 **PPG Signal Processor**: Upload your own PPG files
+            """)
+            
+            if st.button("🎯 Switch to Realistic BP Predictor"):
+                st.rerun()
             
     elif app_choice == "Realistic BP Predictor (Recommended)":
         st.markdown("---")

@@ -37,13 +37,27 @@ sys.path.append(str(project_root))
 
 # Import PaPaGei components
 try:
-    from src.core.rppg_integration import rPPGToolboxIntegration, extract_ppg_from_camera, extract_ppg_from_video
-    from src.core.preprocessing.ppg import preprocess_one_ppg_signal
-    from src.core.segmentations import waveform_to_segments
+    from src.core.papagei_bp_integration import PaPaGeiIntegration
     from src.core.papagei_glucose_integration import PaPaGeiGlucoseIntegration
     from src.core.cholesterol_integration import CholesterolCardiovascularIntegration
     from src.core.papagei_cholesterol_integration import PaPaGeiCholesterolIntegration
-    from src.core.papagei_bp_integration import PaPaGeiIntegration
+    
+    # Optional imports - graceful fallback if not available
+    try:
+        from src.core.rppg_integration import rPPGToolboxIntegration, extract_ppg_from_camera, extract_ppg_from_video
+        RPPG_TOOLBOX_AVAILABLE = True
+    except ImportError:
+        RPPG_TOOLBOX_AVAILABLE = False
+        
+    try:
+        from src.core.preprocessing.ppg import preprocess_one_ppg_signal
+    except ImportError:
+        pass
+        
+    try:
+        from src.core.segmentations import waveform_to_segments
+    except ImportError:
+        pass
     try:
         from torch_ecg._preprocessors import Normalize
     except ImportError:
