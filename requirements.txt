@@ -1,5 +1,5 @@
 # Blood Pressure Predictor - Streamlit Cloud Requirements  
-# Dependencies optimized for Python 3.13 + Streamlit Cloud + Camera support
+# Dependencies optimized for Python 3.13 + Streamlit Cloud + Real Camera support
 
 # Core packages (use default versions that Streamlit Cloud supports)
 streamlit
@@ -13,10 +13,12 @@ plotly
 scipy
 joblib
 
-# Camera support (essential for full functionality)
+# Real camera support via WebRTC (works on Streamlit Cloud)
+streamlit-webrtc>=0.47.0
 opencv-python-headless
 torch
 torchvision
+aiortc==1.6.0
 
 # Additional ML/Signal processing
 yacs

@@ -48,6 +48,13 @@ try:
         RPPG_TOOLBOX_AVAILABLE = True
     except ImportError:
         RPPG_TOOLBOX_AVAILABLE = False
+    
+    # WebRTC camera support (works on Streamlit Cloud)
+    try:
+        from src.core.webrtc_camera import create_webrtc_camera_interface, WEBRTC_AVAILABLE
+        WEBRTC_CAMERA_AVAILABLE = True
+    except ImportError:
+        WEBRTC_CAMERA_AVAILABLE = False
         
     try:
         from src.core.preprocessing.ppg import preprocess_one_ppg_signal
@@ -125,10 +132,17 @@ def main():
     st.markdown("*Powered by rPPG-Toolbox + PaPaGei Foundation Model*")
     st.markdown("🩺 **Blood Pressure** • 🍯 **Glucose** • 🧪 **Cholesterol** • ❤️ **Cardiovascular Risk**")
     
-    # Check if rPPG is available
-    if not RPPG_AVAILABLE:
-        st.error("⚠️ rPPG-Toolbox integration not available. Please install dependencies.")
-        st.info("Run: `cd external/rppg-toolbox && bash setup.sh conda`")
+    # Check what's available
+    webrtc_available = WEBRTC_CAMERA_AVAILABLE and WEBRTC_AVAILABLE
+    rppg_toolbox_available = RPPG_TOOLBOX_AVAILABLE
+    
+    if webrtc_available:
+        st.success("🌐 **WebRTC Camera Available** - Full functionality works on Streamlit Cloud!")
+    elif rppg_toolbox_available:
+        st.info("🖥️ **Traditional Camera Available** - Works locally but may not work on cloud platforms.")
+    else:
+        st.error("⚠️ No camera functionality available. Please install dependencies.")
+        st.info("Install streamlit-webrtc for cloud compatibility or rPPG-Toolbox for local use.")
         return
 
     
@@ -458,6 +472,42 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
     """Interface for live camera PPG extraction."""
     
     st.header("📹 Live Camera PPG Extraction")
+    
+    # Camera mode selection
+    st.markdown("### 🎥 Camera Access Mode")
+    
+    # Check what's available
+    webrtc_available = WEBRTC_CAMERA_AVAILABLE and WEBRTC_AVAILABLE
+    
+    if webrtc_available:
+        st.success("🌐 **WebRTC Camera Available** - Works on Streamlit Cloud!")
+        camera_mode = st.radio(
+            "Choose camera mode:",
+            ["🌐 WebRTC Camera (Cloud-Compatible)", "🖥️ Traditional Camera (Local Only)"],
+            help="WebRTC works on Streamlit Cloud, Traditional only works locally"
+        )
+    else:
+        st.warning("⚠️ WebRTC not available. Using traditional camera (local only).")
+        camera_mode = "🖥️ Traditional Camera (Local Only)"
+    
+    # WebRTC Camera Interface
+    if camera_mode == "🌐 WebRTC Camera (Cloud-Compatible)":
+        st.markdown("---")
+        st.info("🌐 **Using WebRTC Technology**: Real camera access that works on Streamlit Cloud!")
+        
+        # Use WebRTC interface
+        ppg_result, ppg_metadata = create_webrtc_camera_interface(duration)
+        
+        if ppg_result is not None:
+            # Process the PPG signal through PaPaGei pipeline
+            with st.spinner("🧠 Processing PPG signal through PaPaGei models..."):
+                process_webrtc_ppg_predictions(ppg_result, ppg_metadata, method, duration)
+        
+        return  # Skip traditional camera interface
+    
+    # Traditional camera interface (original code)
+    st.markdown("---")
+    st.info("🖥️ **Traditional Camera Mode**: Works locally but may not work on cloud platforms.")
     
     col1, col2 = st.columns([2, 1])
     
@@ -1615,6 +1665,61 @@ def info_interface():
     
     **Pro tip**: Try different methods to see which works best for your setup!
     """)
+
+def process_webrtc_ppg_predictions(ppg_signal: np.ndarray, metadata: Dict[str, Any], method: str, duration: float):
+    """
+    Process PPG signal from WebRTC camera through PaPaGei prediction pipeline
+    """
+    try:
+        # Create PaPaGei format data
+        papagei_data = {
+            'ppg_signal': ppg_signal,
+            'sampling_rate': metadata.get('sampling_rate', 30.0),
+            'duration': len(ppg_signal) / metadata.get('sampling_rate', 30.0),
+            'extraction_method': metadata.get('method', 'webrtc_camera'),
+            'heart_rate_estimate': metadata.get('heart_rate'),
+            'quality_score': metadata.get('quality_score'),
+            'metadata': metadata
+        }
+        
+        # Get patient info from session state
+        patient_info = st.session_state.get('patient_info', {})
+        
+        # Run comprehensive health predictions
+        health_predictions = predict_unified_health_metrics(papagei_data, patient_info)
+        
+        # Store results in session state
+        st.session_state.ppg_results = {
+            'ppg_signal': ppg_signal,
+            'metadata': metadata,
+            'health_predictions': health_predictions,
+            'method': method,
+            'source': 'webrtc_camera'
+        }
+        
+        st.success("🎉 WebRTC camera PPG extraction and health prediction completed!")
+        
+        # Show extraction method info
+        if metadata.get('note'):
+            st.info(f"ℹ️ {metadata['note']}")
+        
+        # Display quick results
+        display_unified_results(health_predictions, metadata)
+        
+        # Show WebRTC specific stats
+        if 'frames_processed' in metadata:
+            with st.expander("📊 WebRTC Processing Stats"):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Frames Processed", metadata.get('frames_processed', 'N/A'))
+                with col2:
+                    st.metric("Face Detection Rate", f"{metadata.get('face_detection_ratio', 0)*100:.1f}%")
+                with col3:
+                    st.metric("Quality Score", f"{metadata.get('quality_score', 0):.2f}")
+        
+    except Exception as e:
+        st.error(f"❌ PPG processing failed: {e}")
+        logger.error(f"WebRTC PPG processing error: {e}")
 
 if __name__ == "__main__":
     main()
