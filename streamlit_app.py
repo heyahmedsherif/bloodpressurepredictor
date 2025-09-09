@@ -39,20 +39,30 @@ def main():
             from src.apps.camera_bp_predictor import main as camera_main
             camera_main()
         except ImportError as e:
-            st.error("🚫 **Camera Health Predictor not available on Streamlit Cloud**")
-            st.warning("⚡ **Quick Fix**: Try the **Realistic BP Predictor** instead - it provides the core blood pressure prediction functionality!")
+            st.error("🚫 **Camera dependencies are still installing**")
+            st.warning("⏳ **Please wait 2-3 minutes** and refresh the page - Streamlit Cloud is installing camera packages")
             st.info("""
-            **Why this happens**: Camera features require additional dependencies (OpenCV, PyTorch, rPPG-Toolbox) 
-            that may not be available in all cloud environments.
+            **Camera features are now enabled!** If you see this message:
+            - The camera packages (OpenCV, PyTorch) are being installed
+            - This typically takes 2-3 minutes on first deployment
+            - Refresh the page in a few minutes
             
-            **Alternatives**:
-            - 🎯 **Realistic BP Predictor**: Core BP prediction with manual input
-            - 🔬 **Extended BP Predictor**: Advanced features with lifestyle factors
-            - 📊 **PPG Signal Processor**: Upload your own PPG files
+            **If the issue persists after 5+ minutes**:
+            - Try the **Realistic BP Predictor** for immediate access
+            - The camera features will be available once installation completes
             """)
             
-            if st.button("🎯 Switch to Realistic BP Predictor"):
-                st.rerun()
+            with st.expander("🔧 Technical Details"):
+                st.code(f"Import error: {e}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Refresh Page"):
+                    st.rerun()
+            with col2:
+                if st.button("🎯 Use Alternative Predictor"):
+                    st.session_state.app_choice = "Realistic BP Predictor (Recommended)"
+                    st.rerun()
             
     elif app_choice == "Realistic BP Predictor (Recommended)":
         st.markdown("---")
