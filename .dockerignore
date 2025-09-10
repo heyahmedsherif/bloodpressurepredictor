@@ -1,0 +1,78 @@
+# Railway .dockerignore
+# Exclude unnecessary files from Docker build
+
+# Version control
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Development files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Local configuration
+.streamlit/secrets.toml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Node modules (if any)
+node_modules/
+
+# Jupyter notebooks (development only)
+*.ipynb
+
+# Large model files (should be downloaded at runtime if needed)
+models/large/
+*.pkl
+*.h5
+*.pth
+
+# Local development
+requirements-local.txt
+environment.yml
+setup_conda.sh
+fix_environment.sh

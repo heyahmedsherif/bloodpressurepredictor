@@ -1,0 +1,40 @@
+name: bloodpressure
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Core Python
+  - python=3.10
+  
+  # Core data science stack with compatible versions
+  - numpy=1.24.4
+  - pandas=2.0.3
+  - scikit-learn=1.3.2
+  - scipy=1.11.4
+  - matplotlib=3.8.2
+  - plotly=5.17.0
+  - joblib=1.3.2
+  
+  # Streamlit and web
+  - streamlit=1.28.1
+  
+  # Computer vision
+  - opencv=4.8.1
+  
+  # PyTorch (CPU version for better compatibility)
+  - pytorch=2.1.1
+  - torchvision=0.16.1
+  - cpuonly
+  
+  # Other ML dependencies
+  - pillow=10.1.0
+  - tqdm=4.66.1
+  - pyyaml=6.0.1
+  
+  # Pip dependencies (not available in conda)
+  - pip
+  - pip:
+    - yacs==0.1.8
+    - streamlit-webrtc==0.47.7
+    - aiortc==1.6.0
+    - twilio==8.10.3

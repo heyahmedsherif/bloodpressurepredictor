@@ -30,13 +30,13 @@ sys.path.append('.')
 sys.path.append('./models')
 sys.path.append('./linearprobing')
 
-# Page configuration
-st.set_page_config(
-    page_title="Cardiovascular Risk Predictor",
-    page_icon="❤️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Page configuration - commented out to avoid conflict with main app
+# st.set_page_config(
+#     page_title="Cardiovascular Risk Predictor",
+#     page_icon="❤️",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
 
 # Global error tracking
 class ErrorTracker:

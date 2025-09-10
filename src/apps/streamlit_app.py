@@ -39,13 +39,13 @@ except ImportError as e:
     st.error(f"Error importing PaPaGei components: {e}")
     st.info("Make sure you're running this from the papagei-foundation-model directory")
 
-# Page configuration
-st.set_page_config(
-    page_title="Cardiovascular Risk Predictor",
-    page_icon="❤️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Page configuration - commented out to avoid conflict with main app
+# st.set_page_config(
+#     page_title="Cardiovascular Risk Predictor",
+#     page_icon="❤️",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
 
 class PPGProcessor:
     """PPG Signal Processing using PaPaGei pipeline"""

@@ -82,13 +82,13 @@ try:
 except ImportError:
     PYPPG_AVAILABLE = False
 
-# Page configuration
-st.set_page_config(
-    page_title="Realistic BP Predictor",
-    page_icon="🩺",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Page configuration - commented out to avoid conflict with main app
+# st.set_page_config(
+#     page_title="Realistic BP Predictor",
+#     page_icon="🩺",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
+# )
 
 class RealisticBPPredictor:
     """Realistic Blood Pressure Predictor using only clinically available features"""

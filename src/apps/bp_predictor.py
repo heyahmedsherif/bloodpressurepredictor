@@ -42,12 +42,12 @@ except ImportError as e:
     st.error(f"Machine learning libraries not available: {e}")
     ML_AVAILABLE = False
 
-# Page configuration
-st.set_page_config(
-    page_title="Blood Pressure Predictor",
-    page_icon="🩺",
-    layout="wide",
-    initial_sidebar_state="expanded"
+# Page configuration - commented out to avoid conflict with main app
+# st.set_page_config(
+#     page_title="Blood Pressure Predictor",
+#     page_icon="🩺",
+#     layout="wide",
+#     initial_sidebar_state="expanded"
 )
 
 class BPPredictor:
