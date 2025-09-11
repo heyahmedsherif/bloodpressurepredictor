@@ -1,12 +1,21 @@
-# Lightweight Railway Dockerfile for PaPaGei Blood Pressure Predictor
-# Optimized for minimal size and Railway free tier
+# Multi-architecture Railway Dockerfile for PaPaGei Blood Pressure Predictor
+# Optimized for ARM64/x86_64 compatibility and minimal size
 
 FROM python:3.10-slim
 
-# Install only essential system dependencies
+# Install system dependencies needed for OpenCV and WebRTC
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
+    libgstreamer1.0-0 \
+    libgstreamer-plugins-base1.0-0 \
+    libgtk-3-0 \
+    libavcodec58 \
+    libavformat58 \
+    libavutil56 \
+    libswscale5 \
+    libsrtp2-1 \
+    libasound2 \
     curl \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get purge -y --auto-remove

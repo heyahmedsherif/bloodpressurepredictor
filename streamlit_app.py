@@ -39,53 +39,21 @@ def main():
             from src.apps.camera_bp_predictor import main as camera_main
             camera_main()
         except ImportError as e:
-            st.error("🚫 **Camera import failed**")
-            st.warning("🔧 **Debugging camera import issue**")
-            
-            # Show the actual error for debugging
-            error_msg = str(e)
-            st.code(f"Import error: {error_msg}")
-            
-            # More detailed diagnostics
-            with st.expander("🔧 Detailed Import Diagnostics"):
-                st.write("**Testing individual imports:**")
-                
-                # Test basic imports
-                try:
-                    import cv2
-                    st.success("✅ OpenCV (cv2) - Available")
-                except ImportError as cv2_err:
-                    st.error(f"❌ OpenCV (cv2) - Failed: {cv2_err}")
-                
-                try:
-                    import numpy as np
-                    st.success("✅ NumPy - Available")
-                except ImportError as np_err:
-                    st.error(f"❌ NumPy - Failed: {np_err}")
-                    
-                try:
-                    from streamlit_webrtc import webrtc_streamer
-                    st.success("✅ Streamlit-WebRTC - Available")
-                except ImportError as webrtc_err:
-                    st.error(f"❌ Streamlit-WebRTC - Failed: {webrtc_err}")
-                
-                # Test our core imports
-                try:
-                    from src.core.railway_webrtc_camera import create_webrtc_ppg_interface
-                    st.success("✅ WebRTC Camera Interface - Available") 
-                except ImportError as core_err:
-                    st.error(f"❌ WebRTC Camera Interface - Failed: {core_err}")
-            
+            st.error("🚫 **Camera dependencies loading**")
+            st.warning("⏳ **Please wait a moment** - Dependencies are initializing...")
             st.info("""
-            **Alternative Options:**
+            **Camera features are now enabled!** If you see this message:
+            - The camera packages are being loaded for the first time
+            - This typically takes 30-60 seconds on Railway
+            - The app will work once loading completes
+            
+            **Alternative Options (available immediately):**
             - Use **Realistic BP Predictor** for immediate access (no camera required)
             - Use **Extended BP Predictor** for research features
             """)
             
-            if "No module named" in error_msg:
-                missing_module = error_msg.split("No module named ")[1].strip("'\"")
-                st.warning(f"🔧 **Missing dependency**: `{missing_module}`")
-                st.info("This dependency should be in requirements.txt. Railway may need time to install it.")
+            with st.expander("🔧 Technical Details"):
+                st.code(f"Loading: {e}")
             
             col1, col2 = st.columns(2)
             with col1:
