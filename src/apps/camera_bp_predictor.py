@@ -181,14 +181,14 @@ def main():
         st.markdown("*Optional: Improves glucose & cardiovascular predictions*")
         
         # Basic demographics
-        patient_age = st.number_input("Age", min_value=18, max_value=100, value=30, step=1)
-        patient_gender = st.selectbox("Gender", ["Female", "Male"], index=0)
+        patient_age = st.number_input("Age", min_value=18, max_value=100, value=47, step=1)
+        patient_gender = st.selectbox("Gender", ["Female", "Male"], index=1)
         
         col1, col2 = st.columns(2)
         with col1:
-            height_cm = st.number_input("Height (cm)", min_value=120, max_value=220, value=170, step=1)
+            height_cm = st.number_input("Height (cm)", min_value=120, max_value=220, value=173, step=1)
         with col2:
-            weight_kg = st.number_input("Weight (kg)", min_value=30, max_value=200, value=70, step=1)
+            weight_kg = st.number_input("Weight (kg)", min_value=30, max_value=200, value=83, step=1)
         
         # Health information
         with st.expander("🏥 Health Information (Optional)"):

@@ -500,12 +500,12 @@ def main():
         st.subheader("👤 Basic Information")
         st.caption("*Standard demographics - always available*")
         
-        age = st.slider("Age (years)", 18, 85, 45)
-        gender = st.selectbox("Gender", ["Female", "Male"])
+        age = st.slider("Age (years)", 18, 85, 47)
+        gender = st.selectbox("Gender", ["Female", "Male"], index=1)
         gender_male = 1 if gender == "Male" else 0
         
-        height_cm = st.slider("Height (cm)", 140, 200, 170)
-        weight_kg = st.slider("Weight (kg)", 40, 150, 75)
+        height_cm = st.slider("Height (cm)", 140, 200, 173)
+        weight_kg = st.slider("Weight (kg)", 40, 150, 83)
         bmi = weight_kg / ((height_cm / 100) ** 2)
         st.info(f"BMI: {bmi:.1f}")
         

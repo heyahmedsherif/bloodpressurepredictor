@@ -419,12 +419,12 @@ def main():
         st.subheader("👤 Patient Information")
         
         # Demographics
-        age = st.slider("Age (years)", 18, 90, 45)
-        gender = st.selectbox("Gender", ["Female", "Male"])
+        age = st.slider("Age (years)", 18, 90, 47)
+        gender = st.selectbox("Gender", ["Female", "Male"], index=1)
         gender_male = 1 if gender == "Male" else 0
         
-        height_cm = st.slider("Height (cm)", 140, 220, 170)
-        weight_kg = st.slider("Weight (kg)", 40, 150, 70)
+        height_cm = st.slider("Height (cm)", 140, 220, 173)
+        weight_kg = st.slider("Weight (kg)", 40, 150, 83)
         bmi = weight_kg / ((height_cm/100) ** 2)
         st.info(f"BMI: {bmi:.1f}")
         
