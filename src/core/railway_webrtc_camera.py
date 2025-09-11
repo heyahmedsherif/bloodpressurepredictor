@@ -344,6 +344,29 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
     target_frames = int(duration * 30)  # Assuming 30 FPS
     processor.max_frames = target_frames
     
+    # WebRTC streamer - always show video, control recording through processor state
+    webrtc_ctx = webrtc_streamer(
+        key="ppg-camera",
+        mode=WebRtcMode.SENDRECV,
+        video_processor_factory=PPGVideoProcessor,  # Create fresh instance each time
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True
+    )
+    
+    # Synchronize processor state with WebRTC processor
+    if webrtc_ctx.video_processor:
+        if st.session_state.recording_state == 'recording' and not webrtc_ctx.video_processor.recording:
+            webrtc_ctx.video_processor.start_recording()
+            webrtc_ctx.video_processor.max_frames = target_frames
+        elif st.session_state.recording_state != 'recording' and webrtc_ctx.video_processor.recording:
+            webrtc_ctx.video_processor.stop_recording()
+        
+        # Update our session processor with the WebRTC processor state
+        if webrtc_ctx.video_processor.frames:
+            st.session_state.ppg_processor.frames = webrtc_ctx.video_processor.frames.copy()
+        if webrtc_ctx.video_processor.ppg_values:
+            st.session_state.ppg_processor.ppg_values = webrtc_ctx.video_processor.ppg_values.copy()
+    
     # Main recording control - single button interface
     if st.session_state.recording_state == 'idle':
         if st.button("🔴 Start Recording & Live Preview", type="primary", use_container_width=True):
@@ -419,29 +442,6 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
             processor.frames = []
             processor.ppg_values = []
             st.rerun()
-    
-    # WebRTC streamer - always show video, control recording through processor state
-    webrtc_ctx = webrtc_streamer(
-        key="ppg-camera",
-        mode=WebRtcMode.SENDRECV,
-        video_processor_factory=PPGVideoProcessor,  # Create fresh instance each time
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True
-    )
-    
-    # Synchronize processor state with WebRTC processor
-    if webrtc_ctx.video_processor:
-        if st.session_state.recording_state == 'recording' and not webrtc_ctx.video_processor.recording:
-            webrtc_ctx.video_processor.start_recording()
-            webrtc_ctx.video_processor.max_frames = target_frames
-        elif st.session_state.recording_state != 'recording' and webrtc_ctx.video_processor.recording:
-            webrtc_ctx.video_processor.stop_recording()
-        
-        # Update our session processor with the WebRTC processor state
-        if webrtc_ctx.video_processor.frames:
-            st.session_state.ppg_processor.frames = webrtc_ctx.video_processor.frames.copy()
-        if webrtc_ctx.video_processor.ppg_values:
-            st.session_state.ppg_processor.ppg_values = webrtc_ctx.video_processor.ppg_values.copy()
     
     # Show results if available
     if 'ppg_result' in st.session_state:
