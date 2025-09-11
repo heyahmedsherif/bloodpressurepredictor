@@ -499,18 +499,9 @@ def camera_interface(method: str, duration: float, camera_id: int, fps: int, qua
     
     st.header("📹 Real-time Camera PPG Extraction")
     
-    # Check WebRTC availability
+    # Use ONLY the WebRTC interface - single button experience
     if REAL_WEBRTC_AVAILABLE:
-        st.success("🔬 **Real-time PPG Extraction Available!**")
-        st.info("""
-        📋 **Instructions**: 
-        • Grant camera permissions when prompted
-        • Position your face in the green detection box
-        • Stay still during recording for accurate PPG extraction
-        • Recording will capture ~30 seconds of data for analysis
-        """)
-        
-        # Use WebRTC interface
+        # Direct WebRTC interface - no extra instructions or buttons
         ppg_result, metadata = create_webrtc_ppg_interface(duration)
         
         if ppg_result is not None:
