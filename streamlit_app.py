@@ -21,17 +21,50 @@ def main():
     st.markdown("*Powered by PaPaGei Foundation Model + Advanced ML*")
     st.markdown("📹 **Camera Health Assessment** • 🩺 **Blood Pressure** • 🍯 **Glucose** • 🧪 **Cholesterol** • ❤️ **Cardiovascular Risk**")
     
-    # App selection (Camera disabled for emergency build)
+    # App selection
     app_choice = st.selectbox(
         "Choose Application:",
         [
+            "📹 Camera Health Predictor (NEW!)",
             "Realistic BP Predictor (Recommended)",
             "Extended BP Predictor", 
             "PPG Signal Processor"
         ]
     )
     
-    if app_choice == "Realistic BP Predictor (Recommended)":
+    if app_choice == "📹 Camera Health Predictor (NEW!)":
+        st.markdown("---")
+        st.info("📹 **Camera-Based Health Suite**: Extract PPG from camera + predict BP, glucose, cholesterol, cardiovascular risk")
+        try:
+            from src.apps.camera_bp_predictor import main as camera_main
+            camera_main()
+        except ImportError as e:
+            st.error("🚫 **Camera dependencies loading**")
+            st.warning("⏳ **Please wait a moment** - Dependencies are initializing...")
+            st.info("""
+            **Camera features are now enabled!** If you see this message:
+            - The camera packages are being loaded for the first time
+            - This typically takes 30-60 seconds on Railway
+            - The app will work once loading completes
+            
+            **Alternative Options (available immediately):**
+            - Use **Realistic BP Predictor** for immediate access (no camera required)
+            - Use **Extended BP Predictor** for research features
+            """)
+            
+            with st.expander("🔧 Technical Details"):
+                st.code(f"Loading: {e}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Refresh Page"):
+                    st.rerun()
+            with col2:
+                if st.button("🎯 Use Alternative Predictor"):
+                    st.session_state.app_choice = "Realistic BP Predictor (Recommended)"
+                    st.rerun()
+            
+    elif app_choice == "Realistic BP Predictor (Recommended)":
         st.markdown("---")
         st.info("🎯 **Most Accurate**: Uses only clinically available features for real-world deployment")
         # Import and run the realistic BP predictor
