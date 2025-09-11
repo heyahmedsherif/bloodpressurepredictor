@@ -17,24 +17,8 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies with size optimizations
-RUN pip install --no-cache-dir --no-deps \
-    streamlit>=1.28.1 \
-    numpy>=1.24.4 \
-    pandas>=2.0.3 \
-    plotly>=5.17.0 \
-    pillow>=10.1.0 \
-    scipy>=1.11.4 \
-    && pip install --no-cache-dir \
-    opencv-python-headless>=4.8.1.78 \
-    scikit-learn>=1.3.2 \
-    matplotlib>=3.8.2 \
-    joblib>=1.3.2 \
-    tqdm>=4.66.1 \
-    PyYAML>=6.0.1 \
-    yacs>=0.1.8 \
-    requests>=2.28.1 \
-    && pip cache purge
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt && pip cache purge
 
 # Copy only necessary application files
 COPY streamlit_app.py .
