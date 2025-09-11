@@ -1,7 +1,7 @@
-# Multi-architecture Railway Dockerfile for PaPaGei Blood Pressure Predictor
-# Optimized for ARM64/x86_64 compatibility and minimal size
+# Railway x86_64 Dockerfile for PaPaGei Blood Pressure Predictor
+# Optimized for Railway cloud deployment (x86_64 architecture)
 
-FROM python:3.10-slim
+FROM --platform=linux/amd64 python:3.10-slim
 
 # Install essential system dependencies for OpenCV and WebRTC
 RUN apt-get update && apt-get install -y --no-install-recommends \
