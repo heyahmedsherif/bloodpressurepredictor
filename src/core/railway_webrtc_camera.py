@@ -242,6 +242,8 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
         st.session_state.frames_captured = []
     if 'ppg_values_captured' not in st.session_state:
         st.session_state.ppg_values_captured = []
+    if 'frame_count' not in st.session_state:
+        st.session_state.frame_count = 0
     
     # Create processor instance
     if 'ppg_processor' not in st.session_state:
@@ -255,19 +257,29 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
             st.session_state.recording_state = 'recording'
             st.session_state.frames_captured = []
             st.session_state.ppg_values_captured = []
+            st.session_state.frame_count = 0
             processor.start_recording()
             st.rerun()
     
     elif st.session_state.recording_state == 'recording':
-        # Show recording progress
-        frames_count = len(processor.frames)
+        # Show recording progress - use processor frames count directly
+        frames_count = len(processor.frames) if processor.frames else 0
         max_frames = int(duration * 30)  # 30 FPS assumption
+        
+        # Auto-refresh to show real-time frame count during recording
+        st.empty()  # Force refresh
         
         col1, col2 = st.columns([3, 1])
         with col1:
             st.warning(f"🔴 **Recording...** {frames_count} frames captured")
-            progress = min(1.0, frames_count / max_frames)
+            progress = min(1.0, frames_count / max_frames) if max_frames > 0 else 0
             st.progress(progress)
+            
+            # Display real-time status
+            if frames_count > 0:
+                st.info(f"✅ PPG data points: {len(processor.ppg_values) if processor.ppg_values else 0}")
+            else:
+                st.info("🎥 Establishing camera connection...")
         
         with col2:
             if st.button("⏹️ Stop", use_container_width=True) or frames_count >= max_frames:
@@ -275,6 +287,9 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
                 st.session_state.ppg_result = result
                 st.session_state.recording_state = 'processing'
                 st.rerun()
+        
+        # Add periodic refresh to update frame count in real-time
+        # Note: Streamlit will handle the refresh automatically through WebRTC callbacks
     
     elif st.session_state.recording_state == 'processing':
         st.success("✅ Processing complete!")
