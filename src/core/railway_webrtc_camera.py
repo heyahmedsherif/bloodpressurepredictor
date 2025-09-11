@@ -60,14 +60,16 @@ class PPGVideoProcessor(VideoTransformerBase):
         # Convert frame to numpy array
         img = frame.to_ndarray(format="bgr24")
         
-        # Debug logging to track recording state
-        if self.recording:
-            logger.info(f"Recording frame #{len(self.frames)+1}, max_frames: {self.max_frames}")
+        # CRITICAL DEBUG: Always log transform calls to see if frames are coming through
+        current_frame_count = len(self.frames)
+        if current_frame_count < 10 or current_frame_count % 30 == 0:  # Log first 10 frames and every 30th
+            logger.info(f"🎬 TRANSFORM CALLED: recording={self.recording}, frames_stored={current_frame_count}, max_frames={self.max_frames}")
         
         # Always store frames when recording, regardless of face detection
         if self.recording and len(self.frames) < self.max_frames:
             # Store frame for PPG processing
             self.frames.append(img.copy())
+            logger.info(f"✅ FRAME STORED: #{len(self.frames)}/{self.max_frames}")
             
             # Extract PPG signal from face region (or fallback to center)
             ppg_value = self.extract_ppg_from_frame(img)
@@ -82,10 +84,12 @@ class PPGVideoProcessor(VideoTransformerBase):
                 fallback_value = np.mean(center_roi[:, :, 1])
                 self.ppg_values.append(fallback_value)
                 logger.info(f"Fallback PPG value: {fallback_value:.2f}, total PPG values: {len(self.ppg_values)}")
+        elif self.recording and len(self.frames) >= self.max_frames:
+            logger.info(f"🛑 Max frames reached: {len(self.frames)}/{self.max_frames}")
         elif not self.recording:
             # Log when not recording to debug state issues
-            if len(self.frames) % 30 == 0:  # Log every 30 frames to avoid spam
-                logger.info(f"Not recording - recording={self.recording}, frames stored: {len(self.frames)}")
+            if current_frame_count < 5 or current_frame_count % 60 == 0:  # Less frequent logging
+                logger.info(f"⏸️ NOT RECORDING - recording={self.recording}, frames stored: {len(self.frames)}")
         
         # Add visual feedback
         processed_img = self.add_visual_feedback(img)
@@ -348,43 +352,65 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
             st.rerun()
     
     elif st.session_state.recording_state == 'recording':
-        # Show recording status
-        frame_count = processor.get_frame_count()
-        progress = frame_count / target_frames
+        # Show recording status - get from WebRTC processor if available
+        if webrtc_ctx.video_processor:
+            frame_count = len(webrtc_ctx.video_processor.frames)
+            is_recording = webrtc_ctx.video_processor.recording
+        else:
+            frame_count = processor.get_frame_count()
+            is_recording = processor.recording
+            
+        progress = frame_count / target_frames if target_frames > 0 else 0
         
         st.success(f"🔴 Recording in progress... {frame_count}/{target_frames} frames ({progress*100:.1f}%)")
+        st.info(f"🔍 **Debug**: WebRTC_Recording={is_recording}, Session_Recording={processor.recording}")
         
         # Progress bar
         st.progress(progress)
         
         # Stop button
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("⏹️ Stop Recording", type="secondary", use_container_width=True):
-                processor.stop_recording()
-                st.session_state.recording_state = 'processing'
+        if st.button("⏹️ Stop Recording", type="secondary", use_container_width=True):
+            st.session_state.recording_state = 'processing'
+            
+            # Get final data from WebRTC processor
+            if webrtc_ctx.video_processor:
+                webrtc_ctx.video_processor.stop_recording()
+                final_frames = webrtc_ctx.video_processor.frames.copy() if webrtc_ctx.video_processor.frames else []
+                final_ppg = webrtc_ctx.video_processor.ppg_values.copy() if webrtc_ctx.video_processor.ppg_values else []
                 
-                # Process PPG signal
-                result = processor.process_ppg_signal()
-                st.session_state.ppg_result = result
-                
-                st.rerun()
+                # Transfer to session processor for processing
+                processor.frames = final_frames
+                processor.ppg_values = final_ppg
+            
+            # Process PPG signal
+            result = processor.process_ppg_signal()
+            st.session_state.ppg_result = result
+            
+            st.rerun()
         
-        with col2:
-            # Auto-stop when target frames reached
-            if frame_count >= target_frames:
-                processor.stop_recording()
-                st.session_state.recording_state = 'processing'
+        # Auto-stop when target frames reached (without auto-rerun)
+        if frame_count >= target_frames:
+            st.session_state.recording_state = 'processing'
+            
+            # Get final data from WebRTC processor
+            if webrtc_ctx.video_processor:
+                webrtc_ctx.video_processor.stop_recording()
+                final_frames = webrtc_ctx.video_processor.frames.copy() if webrtc_ctx.video_processor.frames else []
+                final_ppg = webrtc_ctx.video_processor.ppg_values.copy() if webrtc_ctx.video_processor.ppg_values else []
                 
-                # Process PPG signal
-                result = processor.process_ppg_signal()
-                st.session_state.ppg_result = result
-                
-                st.info("✅ Recording complete! Processing...")
-                st.rerun()
+                # Transfer to session processor for processing
+                processor.frames = final_frames
+                processor.ppg_values = final_ppg
+            
+            # Process PPG signal
+            result = processor.process_ppg_signal()
+            st.session_state.ppg_result = result
+            
+            st.info("✅ Recording complete! Click to see results.")
         
-        # Add periodic refresh to update frame count in real-time
-        # Note: Streamlit will handle the refresh automatically through WebRTC callbacks
+        # Manual refresh button instead of auto-refresh
+        if st.button("🔄 Refresh Status", key="refresh_recording"):
+            st.rerun()
     
     elif st.session_state.recording_state == 'processing':
         st.success("✅ Processing complete!")
@@ -394,17 +420,28 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
             processor.ppg_values = []
             st.rerun()
     
-    # WebRTC streamer - controlled by our button states
-    # CRITICAL: Capture processor reference before passing to WebRTC (session state not available in worker thread)
-    current_processor = processor  # Local reference to the processor instance
+    # WebRTC streamer - always show video, control recording through processor state
     webrtc_ctx = webrtc_streamer(
         key="ppg-camera",
         mode=WebRtcMode.SENDRECV,
-        video_processor_factory=lambda: current_processor,  # Use local processor reference
+        video_processor_factory=PPGVideoProcessor,  # Create fresh instance each time
         media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
-        desired_playing_state=(st.session_state.recording_state != 'idle')
+        async_processing=True
     )
+    
+    # Synchronize processor state with WebRTC processor
+    if webrtc_ctx.video_processor:
+        if st.session_state.recording_state == 'recording' and not webrtc_ctx.video_processor.recording:
+            webrtc_ctx.video_processor.start_recording()
+            webrtc_ctx.video_processor.max_frames = target_frames
+        elif st.session_state.recording_state != 'recording' and webrtc_ctx.video_processor.recording:
+            webrtc_ctx.video_processor.stop_recording()
+        
+        # Update our session processor with the WebRTC processor state
+        if webrtc_ctx.video_processor.frames:
+            st.session_state.ppg_processor.frames = webrtc_ctx.video_processor.frames.copy()
+        if webrtc_ctx.video_processor.ppg_values:
+            st.session_state.ppg_processor.ppg_values = webrtc_ctx.video_processor.ppg_values.copy()
     
     # Show results if available
     if 'ppg_result' in st.session_state:
