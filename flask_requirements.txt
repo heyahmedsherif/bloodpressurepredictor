@@ -1,0 +1,27 @@
+# Flask Web Application Requirements
+# Optimized for Railway deployment with camera functionality
+
+# Core Flask
+Flask>=2.3.0
+Werkzeug>=2.3.0
+
+# Computer Vision and Image Processing
+opencv-python-headless>=4.8.1.78
+Pillow>=10.1.0
+
+# Scientific Computing
+numpy>=1.24.4
+scipy>=1.11.4
+
+# Data Processing
+pandas>=2.0.3
+
+# Visualization (for signal processing)
+matplotlib>=3.8.2
+
+# Utilities
+requests>=2.28.1
+PyYAML>=6.0.1
+
+# Production server
+gunicorn>=21.2.0
