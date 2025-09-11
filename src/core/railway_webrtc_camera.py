@@ -60,14 +60,22 @@ class PPGVideoProcessor(VideoTransformerBase):
         # Convert frame to numpy array
         img = frame.to_ndarray(format="bgr24")
         
+        # Always store frames when recording, regardless of face detection
         if self.recording and len(self.frames) < self.max_frames:
             # Store frame for PPG processing
             self.frames.append(img.copy())
             
-            # Extract PPG signal from face region
+            # Extract PPG signal from face region (or fallback to center)
             ppg_value = self.extract_ppg_from_frame(img)
+            # Always store a value, even if face detection fails
             if ppg_value is not None:
                 self.ppg_values.append(ppg_value)
+            else:
+                # Fallback: use center region green channel
+                h, w = img.shape[:2]
+                center_roi = img[h//4:3*h//4, w//4:3*w//4]
+                fallback_value = np.mean(center_roi[:, :, 1])
+                self.ppg_values.append(fallback_value)
         
         # Add visual feedback
         img = self.add_visual_feedback(img)
@@ -217,22 +225,16 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
         st.error("❌ WebRTC not available. Please check requirements.txt")
         return None, {}
     
-    # Hide the default streamlit-webrtc control buttons with CSS
-    st.markdown("""
-    <style>
-    /* Hide all webrtc default buttons */
-    div[data-testid="stWebRtc"] button {
-        display: none !important;
-    }
-    /* Hide webrtc control panel */
-    div[data-testid="stWebRtc"] > div > div:last-child {
-        display: none !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
     st.markdown("### 📹 Real-time Camera PPG Extraction")
-    st.info("🎥 **Instructions**: Position your face in the green box and stay still during recording.")
+    st.info("🎥 **Instructions**: Grant camera access, then click the button below to start recording with live preview.")
+    
+    # Initialize session state
+    if 'recording_state' not in st.session_state:
+        st.session_state.recording_state = 'idle'  # idle, recording, processing
+    if 'frames_captured' not in st.session_state:
+        st.session_state.frames_captured = []
+    if 'ppg_values_captured' not in st.session_state:
+        st.session_state.ppg_values_captured = []
     
     # Create processor instance
     if 'ppg_processor' not in st.session_state:
@@ -240,41 +242,50 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
     
     processor = st.session_state.ppg_processor
     
-    # WebRTC streamer - always show video, control recording separately
+    # Main recording control - single button interface
+    if st.session_state.recording_state == 'idle':
+        if st.button("🔴 Start Recording & Live Preview", type="primary", use_container_width=True):
+            st.session_state.recording_state = 'recording'
+            st.session_state.frames_captured = []
+            st.session_state.ppg_values_captured = []
+            processor.start_recording()
+            st.rerun()
+    
+    elif st.session_state.recording_state == 'recording':
+        # Show recording progress
+        frames_count = len(processor.frames)
+        max_frames = int(duration * 30)  # 30 FPS assumption
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.warning(f"🔴 **Recording...** {frames_count} frames captured")
+            progress = min(1.0, frames_count / max_frames)
+            st.progress(progress)
+        
+        with col2:
+            if st.button("⏹️ Stop", use_container_width=True) or frames_count >= max_frames:
+                result = processor.stop_recording()
+                st.session_state.ppg_result = result
+                st.session_state.recording_state = 'processing'
+                st.rerun()
+    
+    elif st.session_state.recording_state == 'processing':
+        st.success("✅ Processing complete!")
+        if st.button("🔄 Record Again", use_container_width=True):
+            st.session_state.recording_state = 'idle'
+            processor.frames = []
+            processor.ppg_values = []
+            st.rerun()
+    
+    # WebRTC streamer - controlled by our button states
     webrtc_ctx = webrtc_streamer(
         key="ppg-camera",
         mode=WebRtcMode.SENDRECV,
         video_processor_factory=lambda: processor,
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True,
+        desired_playing_state=(st.session_state.recording_state != 'idle')
     )
-    
-    # Single recording control
-    if not processor.recording:
-        # Before recording - show single start button
-        if st.button("🔴 Start Live Recording & PPG Analysis", type="primary", use_container_width=True, help="Click to start recording with live video and face detection"):
-            processor.start_recording()
-            st.rerun()
-    else:
-        # During recording - show progress and stop option
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            st.warning(f"🔴 **Recording Live PPG...** {len(processor.frames)} frames captured")
-            progress = min(1.0, len(processor.frames) / processor.max_frames)
-            st.progress(progress)
-            
-            # Auto-stop when reaching max frames
-            if len(processor.frames) >= processor.max_frames:
-                result = processor.stop_recording()
-                st.session_state.ppg_result = result
-                st.rerun()
-        
-        with col2:
-            if st.button("⏹️ Stop & Analyze", use_container_width=True):
-                result = processor.stop_recording()
-                st.session_state.ppg_result = result
-                st.rerun()
     
     # Show results if available
     if 'ppg_result' in st.session_state:
