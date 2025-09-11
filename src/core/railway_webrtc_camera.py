@@ -116,11 +116,17 @@ class PPGVideoProcessor(VideoTransformerBase):
                 cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
                 cv2.putText(frame, 'Face Detected', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
         
-        # Add instructions
-        cv2.putText(frame, 'Position your face in the green box', (10, frame.shape[0]-30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        cv2.putText(frame, 'Stay still during recording', (10, frame.shape[0]-10), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        # Add instructions based on state
+        if self.recording:
+            cv2.putText(frame, 'Stay very still - Recording PPG signal...', (10, frame.shape[0]-30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(frame, f'Progress: {len(self.frames)}/{self.max_frames} frames', (10, frame.shape[0]-10), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        else:
+            cv2.putText(frame, 'Position your face in the detection box', (10, frame.shape[0]-30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            cv2.putText(frame, 'Click Start when ready', (10, frame.shape[0]-10), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         
         return frame
     
@@ -229,33 +235,32 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
         async_processing=True,
     )
     
-    # Recording controls
-    col1, col2, col3 = st.columns([2, 1, 1])
-    
-    with col1:
-        if not processor.recording:
-            if st.button("🔴 Start PPG Recording", type="primary", use_container_width=True):
-                processor.start_recording()
-                st.rerun()
-        else:
-            st.warning(f"🔴 Recording... {len(processor.frames)} frames captured")
-            st.progress(min(1.0, len(processor.frames) / processor.max_frames))
-    
-    with col2:
-        if processor.recording:
-            if st.button("⏹️ Stop", use_container_width=True):
+    # Single recording control
+    if not processor.recording:
+        # Before recording - show single start button
+        if st.button("🔴 Start Live Recording & PPG Analysis", type="primary", use_container_width=True, help="Click to start recording with live video and face detection"):
+            processor.start_recording()
+            st.rerun()
+    else:
+        # During recording - show progress and stop option
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.warning(f"🔴 **Recording Live PPG...** {len(processor.frames)} frames captured")
+            progress = min(1.0, len(processor.frames) / processor.max_frames)
+            st.progress(progress)
+            
+            # Auto-stop when reaching max frames
+            if len(processor.frames) >= processor.max_frames:
                 result = processor.stop_recording()
                 st.session_state.ppg_result = result
                 st.rerun()
-    
-    with col3:
-        if st.button("🔄 Reset", use_container_width=True):
-            processor.recording = False
-            processor.frames = []
-            processor.ppg_values = []
-            if 'ppg_result' in st.session_state:
-                del st.session_state.ppg_result
-            st.rerun()
+        
+        with col2:
+            if st.button("⏹️ Stop & Analyze", use_container_width=True):
+                result = processor.stop_recording()
+                st.session_state.ppg_result = result
+                st.rerun()
     
     # Show results if available
     if 'ppg_result' in st.session_state:
@@ -298,6 +303,17 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
             'frames_processed': result.frames_processed,
             'duration': result.duration
         }
+        
+        # Add new recording button
+        st.markdown("---")
+        if st.button("🔄 Record New PPG Session", use_container_width=True):
+            # Reset processor state
+            processor.recording = False
+            processor.frames = []
+            processor.ppg_values = []
+            if 'ppg_result' in st.session_state:
+                del st.session_state.ppg_result
+            st.rerun()
         
         return result, metadata
     
