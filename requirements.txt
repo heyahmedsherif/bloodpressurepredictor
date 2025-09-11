@@ -1,7 +1,7 @@
 # Railway Requirements with Camera Support - ARM64/x86_64 Compatible
 # Gradual restoration of WebRTC with gcc-free alternatives
 
-# Core Streamlit with dependencies
+# Core Streamlit with dependencies - latest version
 streamlit>=1.28.1
 blinker>=1.5.0
 altair>=4.0
@@ -22,8 +22,8 @@ matplotlib>=3.8.2
 # Camera support - headless for container
 opencv-python-headless>=4.8.1.78
 
-# WebRTC dependencies - using pre-compiled wheels only
-streamlit-webrtc==0.47.0
+# WebRTC dependencies - latest version with modern Streamlit compatibility
+streamlit-webrtc>=0.47.1
 aiortc==1.6.0
 av>=10.0.0
 aioice>=0.9.0
