@@ -217,6 +217,20 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
         st.error("❌ WebRTC not available. Please check requirements.txt")
         return None, {}
     
+    # Hide the default streamlit-webrtc control buttons with CSS
+    st.markdown("""
+    <style>
+    /* Hide all webrtc default buttons */
+    div[data-testid="stWebRtc"] button {
+        display: none !important;
+    }
+    /* Hide webrtc control panel */
+    div[data-testid="stWebRtc"] > div > div:last-child {
+        display: none !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     st.markdown("### 📹 Real-time Camera PPG Extraction")
     st.info("🎥 **Instructions**: Position your face in the green box and stay still during recording.")
     
@@ -226,7 +240,7 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
     
     processor = st.session_state.ppg_processor
     
-    # WebRTC streamer
+    # WebRTC streamer - always show video, control recording separately
     webrtc_ctx = webrtc_streamer(
         key="ppg-camera",
         mode=WebRtcMode.SENDRECV,
