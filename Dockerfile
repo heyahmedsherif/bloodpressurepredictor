@@ -3,30 +3,25 @@
 
 FROM python:3.10-slim
 
-# Install system dependencies for OpenCV and camera support
+# Install essential system dependencies for OpenCV
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    libglib2.0-0 \
-    libgl1-mesa-glx \
     libgthread-2.0-0 \
-    libgtk-3-0 \
     pkg-config \
     libavcodec-dev \
     libavformat-dev \
     libswscale-dev \
-    libv4l-dev \
-    libxvidcore-dev \
-    libx264-dev \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
-    libatlas-base-dev \
+    libopenblas-dev \
     gfortran \
     wget \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
