@@ -1,19 +1,12 @@
-# Railway x86_64 Dockerfile for PaPaGei Blood Pressure Predictor
-# Optimized for Railway cloud deployment (x86_64 architecture)
+# Ultra-minimal Railway Dockerfile for PaPaGei Blood Pressure Predictor
+# Emergency fast build to stop slow cross-compilation
 
-FROM --platform=linux/amd64 python:3.10-slim
+FROM python:3.10-slim
 
-# Install essential system dependencies for OpenCV and WebRTC
+# Install only absolute essentials
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 \
-    libgomp1 \
-    libgstreamer1.0-0 \
-    libgstreamer-plugins-base1.0-0 \
-    ffmpeg \
-    libasound2 \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get purge -y --auto-remove
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
