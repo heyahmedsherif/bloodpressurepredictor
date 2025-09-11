@@ -78,9 +78,16 @@ class PPGVideoProcessor(VideoTransformerBase):
                 self.ppg_values.append(fallback_value)
         
         # Add visual feedback
-        img = self.add_visual_feedback(img)
+        processed_img = self.add_visual_feedback(img)
         
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
+        # Ensure we return a proper numpy array format
+        if not isinstance(processed_img, np.ndarray):
+            processed_img = np.array(processed_img)
+        
+        # Ensure correct data type
+        processed_img = processed_img.astype(np.uint8)
+        
+        return av.VideoFrame.from_ndarray(processed_img, format="bgr24")
     
     def extract_ppg_from_frame(self, frame: np.ndarray) -> Optional[float]:
         """Extract PPG signal from single frame."""
