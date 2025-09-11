@@ -35,31 +35,39 @@ import time
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-# Import PaPaGei components
+# Initialize availability flags first
+RPPG_TOOLBOX_AVAILABLE = False
+REAL_WEBRTC_AVAILABLE = False
+WEBRTC_CAMERA_AVAILABLE = False  
+SIMPLE_CAMERA_AVAILABLE = False
+RPPG_AVAILABLE = False
+
+# Import PaPaGei components with graceful fallbacks
 try:
-    from src.core.papagei_bp_integration import PaPaGeiIntegration
-    from src.core.papagei_glucose_integration import PaPaGeiGlucoseIntegration
-    from src.core.cholesterol_integration import CholesterolCardiovascularIntegration
-    from src.core.papagei_cholesterol_integration import PaPaGeiCholesterolIntegration
+    # Try importing PaPaGei components (may fail without PyTorch)
+    try:
+        from src.core.papagei_bp_integration import PaPaGeiIntegration
+        from src.core.papagei_glucose_integration import PaPaGeiGlucoseIntegration
+        from src.core.cholesterol_integration import CholesterolCardiovascularIntegration
+        from src.core.papagei_cholesterol_integration import PaPaGeiCholesterolIntegration
+    except ImportError as e:
+        st.info(f"ℹ️ PaPaGei models not available (requires PyTorch): {e}")
     
     # Optional imports - graceful fallback if not available
     try:
         from src.core.rppg_integration import rPPGToolboxIntegration, extract_ppg_from_camera, extract_ppg_from_video
         RPPG_TOOLBOX_AVAILABLE = True
     except ImportError:
-        RPPG_TOOLBOX_AVAILABLE = False
+        pass
     
-    # Removed Twilio/WebRTC components as requested
-    REAL_WEBRTC_AVAILABLE = False
-    WEBRTC_CAMERA_AVAILABLE = False
-    
-    # Simple camera support (always works on Streamlit Cloud)
+    # Simple camera support fallback
     try:
         from src.core.simple_camera import create_simple_camera_interface
         SIMPLE_CAMERA_AVAILABLE = True
     except ImportError:
-        SIMPLE_CAMERA_AVAILABLE = False
+        pass
         
+    # Optional preprocessing imports
     try:
         from src.core.preprocessing.ppg import preprocess_one_ppg_signal
     except ImportError:
@@ -69,22 +77,22 @@ try:
         from src.core.segmentations import waveform_to_segments
     except ImportError:
         pass
-    try:
-        from torch_ecg._preprocessors import Normalize
-    except ImportError:
-        # Fallback normalization class
-        class Normalize:
-            def __init__(self, method='z-score'):
-                self.method = method
-            def apply(self, signal, fs):
-                if self.method == 'z-score':
-                    normalized = (signal - np.mean(signal)) / np.std(signal)
-                    return normalized, {}
-                return signal, {}
+        
+    # Fallback normalization (no PyTorch dependency)
+    class Normalize:
+        def __init__(self, method='z-score'):
+            self.method = method
+        def apply(self, signal, fs):
+            if self.method == 'z-score':
+                normalized = (signal - np.mean(signal)) / np.std(signal)
+                return normalized, {}
+            return signal, {}
+    
     RPPG_AVAILABLE = True
+    
 except ImportError as e:
-    st.error(f"rPPG integration not available: {e}")
-    RPPG_AVAILABLE = False
+    st.warning(f"⚠️ Some features not available: {e}")
+    pass
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
