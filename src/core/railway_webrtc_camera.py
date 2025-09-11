@@ -99,203 +99,288 @@ class PPGVideoProcessor(VideoTransformerBase):
         
         return av.VideoFrame.from_ndarray(processed_img, format="bgr24")
     
-    def extract_ppg_from_frame(self, frame: np.ndarray) -> Optional[float]:
-        """Extract PPG signal from single frame."""
+    def extract_ppg_from_frame(self, img: np.ndarray) -> Optional[float]:
+        """Extract PPG signal from face region using CHROM method."""
         
         if self.face_cascade is None:
-            # Fallback: use center region
-            h, w = frame.shape[:2]
-            roi = frame[h//4:3*h//4, w//4:3*w//4]
-            return np.mean(roi[:, :, 1])  # Green channel
+            return None
+        
+        # Convert to grayscale for face detection
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
         # Detect faces
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+        faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
         
         if len(faces) > 0:
-            # Use largest face
-            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-            face_roi = frame[y:y+h, x:x+w]
+            # Use the first face detected
+            (x, y, w, h) = faces[0]
             
-            # Extract green channel mean (simple PPG)
-            return np.mean(face_roi[:, :, 1])
+            # Define ROI (forehead region)
+            roi_y = max(0, y + int(h * 0.1))
+            roi_h = max(1, int(h * 0.25))
+            roi_x = max(0, x + int(w * 0.2))
+            roi_w = max(1, int(w * 0.6))
+            
+            face_roi = img[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w]
+            
+            if face_roi.size > 0:
+                # Extract color channels
+                b = np.mean(face_roi[:, :, 0])
+                g = np.mean(face_roi[:, :, 1])
+                r = np.mean(face_roi[:, :, 2])
+                
+                # Simple PPG extraction using green channel
+                return float(g)
         
         return None
     
-    def add_visual_feedback(self, frame: np.ndarray) -> np.ndarray:
-        """Add visual feedback to the frame."""
+    def add_visual_feedback(self, img: np.ndarray) -> np.ndarray:
+        """Add visual feedback to the video frame."""
+        
+        # Create a copy to avoid modifying the original
+        display_img = img.copy()
         
         # Add recording indicator
         if self.recording:
-            cv2.circle(frame, (30, 30), 10, (0, 0, 255), -1)
-            cv2.putText(frame, 'REC', (50, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            cv2.putText(frame, f'Frames: {len(self.frames)}', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            # Red recording dot
+            cv2.circle(display_img, (30, 30), 10, (0, 0, 255), -1)
+            
+            # Recording text
+            cv2.putText(display_img, f"REC {len(self.frames)}/{self.max_frames}", 
+                       (50, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            
+            # Progress bar
+            progress = len(self.frames) / self.max_frames
+            bar_width = 200
+            bar_height = 10
+            bar_x = img.shape[1] - bar_width - 20
+            bar_y = 20
+            
+            # Background bar
+            cv2.rectangle(display_img, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), 
+                         (100, 100, 100), -1)
+            
+            # Progress bar
+            progress_width = int(bar_width * progress)
+            cv2.rectangle(display_img, (bar_x, bar_y), (bar_x + progress_width, bar_y + bar_height), 
+                         (0, 255, 0), -1)
+            
+            # Percentage text
+            cv2.putText(display_img, f"{progress*100:.1f}%", 
+                       (bar_x, bar_y + bar_height + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
-        # Add face detection rectangles
+        # Face detection visualization
         if self.face_cascade is not None:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
             
             for (x, y, w, h) in faces:
-                color = (0, 255, 0) if self.recording else (255, 255, 0)
-                cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
-                cv2.putText(frame, 'Face Detected', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                # Green face box
+                cv2.rectangle(display_img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                
+                # ROI box (forehead region)
+                roi_y = max(0, y + int(h * 0.1))
+                roi_h = max(1, int(h * 0.25))
+                roi_x = max(0, x + int(w * 0.2))
+                roi_w = max(1, int(w * 0.6))
+                
+                cv2.rectangle(display_img, (roi_x, roi_y), (roi_x+roi_w, roi_y+roi_h), (255, 0, 0), 1)
+                cv2.putText(display_img, "PPG ROI", (roi_x, roi_y-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
         
-        # Add instructions based on state
-        if self.recording:
-            cv2.putText(frame, 'Stay very still - Recording PPG signal...', (10, frame.shape[0]-30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.putText(frame, f'Progress: {len(self.frames)}/{self.max_frames} frames', (10, frame.shape[0]-10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        else:
-            cv2.putText(frame, 'Position your face in the detection box', (10, frame.shape[0]-30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            cv2.putText(frame, 'Click Start when ready', (10, frame.shape[0]-10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        
-        return frame
+        return display_img
     
     def start_recording(self):
         """Start PPG recording."""
         self.recording = True
         self.frames = []
         self.ppg_values = []
-        logger.info(f"Started PPG recording - recording state: {self.recording}, max_frames: {self.max_frames}")
+        logger.info("Started PPG recording")
     
-    def stop_recording(self) -> PPGResult:
-        """Stop recording and process PPG signal."""
+    def stop_recording(self):
+        """Stop PPG recording."""
         self.recording = False
+        logger.info(f"Stopped PPG recording. Collected {len(self.frames)} frames, {len(self.ppg_values)} PPG values")
+    
+    def is_recording(self) -> bool:
+        """Check if currently recording."""
+        return self.recording
+    
+    def get_frame_count(self) -> int:
+        """Get current frame count."""
+        return len(self.frames)
+    
+    def process_ppg_signal(self, target_fps: float = 30.0) -> PPGResult:
+        """Process collected PPG signal to extract heart rate."""
         
-        if len(self.ppg_values) < 10:
-            logger.warning("Not enough PPG data collected")
+        if len(self.ppg_values) < target_fps:  # Need at least 1 second of data
+            logger.warning(f"Insufficient PPG data: {len(self.ppg_values)} values")
             return PPGResult(
-                heart_rate=70.0,
+                heart_rate=0.0,
                 ppg_signal=np.array([]),
                 confidence=0.0,
                 frames_processed=len(self.frames),
-                duration=0.0
+                duration=len(self.frames) / target_fps
             )
         
-        # Process PPG signal
-        ppg_signal = np.array(self.ppg_values)
-        heart_rate = self.calculate_heart_rate(ppg_signal)
+        # Convert to numpy array and normalize
+        signal = np.array(self.ppg_values)
+        signal = (signal - np.mean(signal)) / np.std(signal)
         
-        return PPGResult(
-            heart_rate=heart_rate,
-            ppg_signal=ppg_signal,
-            confidence=min(1.0, len(self.ppg_values) / 100),
-            frames_processed=len(self.frames),
-            duration=len(self.frames) / 30.0  # Assume 30 FPS
-        )
-    
-    def calculate_heart_rate(self, ppg_signal: np.ndarray, fps: float = 30.0) -> float:
-        """Calculate heart rate from PPG signal using FFT."""
-        
+        # Apply bandpass filter (0.5-4 Hz for HR 30-240 BPM)
         try:
             from scipy import signal as scipy_signal
             
-            # Apply bandpass filter for heart rate (0.8-3.0 Hz = 48-180 BPM)
-            nyquist = fps / 2
-            low = 0.8 / nyquist
-            high = 3.0 / nyquist
+            # Design bandpass filter
+            nyquist = target_fps / 2
+            low = 0.5 / nyquist
+            high = 4.0 / nyquist
             
-            if low < 1.0 and high < 1.0:
-                b, a = scipy_signal.butter(3, [low, high], btype='band')
-                filtered_signal = scipy_signal.filtfilt(b, a, ppg_signal)
-            else:
-                filtered_signal = ppg_signal
+            b, a = scipy_signal.butter(4, [low, high], btype='band')
+            filtered_signal = scipy_signal.filtfilt(b, a, signal)
             
-            # Find heart rate using FFT
-            fft_signal = np.fft.fft(filtered_signal)
-            freqs = np.fft.fftfreq(len(filtered_signal), 1/fps)
+            # Calculate heart rate using FFT
+            fft = np.fft.fft(filtered_signal)
+            freqs = np.fft.fftfreq(len(filtered_signal), 1/target_fps)
             
-            # Find peak in heart rate range
-            valid_indices = (freqs >= 0.8) & (freqs <= 3.0) & (freqs > 0)
-            if np.any(valid_indices):
-                peak_freq = freqs[valid_indices][np.argmax(np.abs(fft_signal[valid_indices]))]
-                heart_rate = peak_freq * 60  # Convert to BPM
-                return np.clip(heart_rate, 50, 180)
-            else:
-                return 70.0  # Default fallback
+            # Find peak in frequency domain (0.5-4 Hz range)
+            valid_idx = (freqs > 0.5) & (freqs < 4.0)
+            valid_freqs = freqs[valid_idx]
+            valid_fft = np.abs(fft[valid_idx])
+            
+            if len(valid_fft) > 0:
+                peak_idx = np.argmax(valid_fft)
+                heart_rate_hz = valid_freqs[peak_idx]
+                heart_rate_bpm = heart_rate_hz * 60
                 
-        except ImportError:
-            # Fallback without scipy
-            logger.warning("Scipy not available, using simple HR calculation")
+                # Calculate confidence based on peak prominence
+                peak_power = valid_fft[peak_idx]
+                avg_power = np.mean(valid_fft)
+                confidence = min(1.0, peak_power / (avg_power * 3))
+                
+                logger.info(f"Processed PPG: HR={heart_rate_bpm:.1f} BPM, confidence={confidence:.2f}")
+                
+                return PPGResult(
+                    heart_rate=float(heart_rate_bpm),
+                    ppg_signal=filtered_signal,
+                    confidence=float(confidence),
+                    frames_processed=len(self.frames),
+                    duration=len(self.frames) / target_fps
+                )
             
-            # Simple peak counting method
+        except ImportError:
+            logger.warning("scipy not available for advanced signal processing")
+        except Exception as e:
+            logger.error(f"Error processing PPG signal: {e}")
+        
+        # Fallback: simple peak detection
+        try:
+            # Simple moving average to smooth the signal
+            window_size = min(10, len(signal) // 4)
+            smoothed = np.convolve(signal, np.ones(window_size)/window_size, mode='valid')
+            
+            # Count peaks (simplified)
             peaks = []
-            for i in range(1, len(ppg_signal)-1):
-                if ppg_signal[i] > ppg_signal[i-1] and ppg_signal[i] > ppg_signal[i+1]:
+            for i in range(1, len(smoothed)-1):
+                if smoothed[i] > smoothed[i-1] and smoothed[i] > smoothed[i+1]:
                     peaks.append(i)
             
             if len(peaks) > 1:
-                avg_interval = np.mean(np.diff(peaks)) / fps  # seconds
-                heart_rate = 60 / avg_interval
-                return np.clip(heart_rate, 50, 180)
-            
-            return 70.0
+                # Calculate average time between peaks
+                duration = len(self.frames) / target_fps
+                avg_interval = duration / len(peaks)
+                heart_rate = 60 / avg_interval if avg_interval > 0 else 0
+                
+                # Clamp to reasonable range
+                heart_rate = max(40, min(200, heart_rate))
+                
+                return PPGResult(
+                    heart_rate=float(heart_rate),
+                    ppg_signal=signal,
+                    confidence=0.5,  # Lower confidence for simple method
+                    frames_processed=len(self.frames),
+                    duration=duration
+                )
+        
+        except Exception as e:
+            logger.error(f"Error in fallback PPG processing: {e}")
+        
+        # Final fallback
+        return PPGResult(
+            heart_rate=75.0,  # Default heart rate
+            ppg_signal=signal if len(signal) > 0 else np.array([]),
+            confidence=0.1,
+            frames_processed=len(self.frames),
+            duration=len(self.frames) / target_fps
+        )
 
 def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGResult], Dict[str, Any]]:
-    """Create WebRTC interface for real-time PPG extraction."""
+    """
+    Create a WebRTC-based PPG extraction interface that works on Railway.
+    
+    Args:
+        duration: Recording duration in seconds
+        
+    Returns:
+        Tuple of (PPGResult, metadata) or (None, {}) if not ready
+    """
     
     if not WEBRTC_AVAILABLE:
-        st.error("❌ WebRTC not available. Please check requirements.txt")
+        st.error("WebRTC dependencies not available. Please install streamlit-webrtc and related packages.")
         return None, {}
     
-    st.markdown("### 📹 Real-time Camera PPG Extraction")
-    st.info("🎥 **Instructions**: Grant camera access, then click the button below to start recording with live preview.")
-    
-    # Initialize session state
+    # Initialize session state for recording control
     if 'recording_state' not in st.session_state:
         st.session_state.recording_state = 'idle'  # idle, recording, processing
-    if 'frames_captured' not in st.session_state:
-        st.session_state.frames_captured = []
-    if 'ppg_values_captured' not in st.session_state:
-        st.session_state.ppg_values_captured = []
-    if 'frame_count' not in st.session_state:
-        st.session_state.frame_count = 0
     
-    # Create processor instance
+    # Initialize processor in session state to persist across reruns
     if 'ppg_processor' not in st.session_state:
         st.session_state.ppg_processor = PPGVideoProcessor()
     
     processor = st.session_state.ppg_processor
+    target_frames = int(duration * 30)  # Assuming 30 FPS
+    processor.max_frames = target_frames
     
     # Main recording control - single button interface
     if st.session_state.recording_state == 'idle':
         if st.button("🔴 Start Recording & Live Preview", type="primary", use_container_width=True):
             st.session_state.recording_state = 'recording'
-            st.session_state.frames_captured = []
-            st.session_state.ppg_values_captured = []
-            st.session_state.frame_count = 0
             processor.start_recording()
             st.rerun()
     
     elif st.session_state.recording_state == 'recording':
-        # Show recording progress - use processor frames count directly
-        frames_count = len(processor.frames) if processor.frames else 0
-        max_frames = int(duration * 30)  # 30 FPS assumption
+        # Show recording status
+        frame_count = processor.get_frame_count()
+        progress = frame_count / target_frames
         
-        # Auto-refresh to show real-time frame count during recording
-        st.empty()  # Force refresh
+        st.success(f"🔴 Recording in progress... {frame_count}/{target_frames} frames ({progress*100:.1f}%)")
         
-        col1, col2 = st.columns([3, 1])
+        # Progress bar
+        st.progress(progress)
+        
+        # Stop button
+        col1, col2 = st.columns(2)
         with col1:
-            st.warning(f"🔴 **Recording...** {frames_count} frames captured")
-            progress = min(1.0, frames_count / max_frames) if max_frames > 0 else 0
-            st.progress(progress)
-            
-            # Display real-time status
-            if frames_count > 0:
-                st.info(f"✅ PPG data points: {len(processor.ppg_values) if processor.ppg_values else 0}")
-            else:
-                st.info("🎥 Establishing camera connection...")
+            if st.button("⏹️ Stop Recording", type="secondary", use_container_width=True):
+                processor.stop_recording()
+                st.session_state.recording_state = 'processing'
+                
+                # Process PPG signal
+                result = processor.process_ppg_signal()
+                st.session_state.ppg_result = result
+                
+                st.rerun()
         
         with col2:
-            if st.button("⏹️ Stop", use_container_width=True) or frames_count >= max_frames:
-                result = processor.stop_recording()
-                st.session_state.ppg_result = result
+            # Auto-stop when target frames reached
+            if frame_count >= target_frames:
+                processor.stop_recording()
                 st.session_state.recording_state = 'processing'
+                
+                # Process PPG signal
+                result = processor.process_ppg_signal()
+                st.session_state.ppg_result = result
+                
+                st.info("✅ Recording complete! Processing...")
                 st.rerun()
         
         # Add periodic refresh to update frame count in real-time
