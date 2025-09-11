@@ -3,18 +3,13 @@
 
 FROM python:3.10-slim
 
-# Install system dependencies needed for OpenCV and WebRTC
+# Install essential system dependencies for OpenCV and WebRTC
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
     libgstreamer1.0-0 \
     libgstreamer-plugins-base1.0-0 \
-    libgtk-3-0 \
-    libavcodec58 \
-    libavformat58 \
-    libavutil56 \
-    libswscale5 \
-    libsrtp2-1 \
+    ffmpeg \
     libasound2 \
     curl \
     && rm -rf /var/lib/apt/lists/* \
