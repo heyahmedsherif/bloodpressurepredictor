@@ -60,6 +60,10 @@ class PPGVideoProcessor(VideoTransformerBase):
         # Convert frame to numpy array
         img = frame.to_ndarray(format="bgr24")
         
+        # Debug logging to track recording state
+        if self.recording:
+            logger.info(f"Recording frame #{len(self.frames)+1}, max_frames: {self.max_frames}")
+        
         # Always store frames when recording, regardless of face detection
         if self.recording and len(self.frames) < self.max_frames:
             # Store frame for PPG processing
@@ -70,12 +74,18 @@ class PPGVideoProcessor(VideoTransformerBase):
             # Always store a value, even if face detection fails
             if ppg_value is not None:
                 self.ppg_values.append(ppg_value)
+                logger.info(f"PPG value extracted: {ppg_value:.2f}, total PPG values: {len(self.ppg_values)}")
             else:
                 # Fallback: use center region green channel
                 h, w = img.shape[:2]
                 center_roi = img[h//4:3*h//4, w//4:3*w//4]
                 fallback_value = np.mean(center_roi[:, :, 1])
                 self.ppg_values.append(fallback_value)
+                logger.info(f"Fallback PPG value: {fallback_value:.2f}, total PPG values: {len(self.ppg_values)}")
+        elif not self.recording:
+            # Log when not recording to debug state issues
+            if len(self.frames) % 30 == 0:  # Log every 30 frames to avoid spam
+                logger.info(f"Not recording - recording={self.recording}, frames stored: {len(self.frames)}")
         
         # Add visual feedback
         processed_img = self.add_visual_feedback(img)
@@ -150,7 +160,7 @@ class PPGVideoProcessor(VideoTransformerBase):
         self.recording = True
         self.frames = []
         self.ppg_values = []
-        logger.info("Started PPG recording")
+        logger.info(f"Started PPG recording - recording state: {self.recording}, max_frames: {self.max_frames}")
     
     def stop_recording(self) -> PPGResult:
         """Stop recording and process PPG signal."""
@@ -300,10 +310,12 @@ def create_webrtc_ppg_interface(duration: float = 30.0) -> Tuple[Optional[PPGRes
             st.rerun()
     
     # WebRTC streamer - controlled by our button states
+    # CRITICAL: Capture processor reference before passing to WebRTC (session state not available in worker thread)
+    current_processor = processor  # Local reference to the processor instance
     webrtc_ctx = webrtc_streamer(
         key="ppg-camera",
         mode=WebRtcMode.SENDRECV,
-        video_processor_factory=lambda: processor,
+        video_processor_factory=lambda: current_processor,  # Use local processor reference
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True,
         desired_playing_state=(st.session_state.recording_state != 'idle')
