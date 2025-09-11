@@ -22,7 +22,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
-import cv2
 import tempfile
 import os
 import sys
@@ -30,6 +29,14 @@ from pathlib import Path
 import logging
 from typing import Optional, Dict, Any, Tuple
 import time
+
+# Try importing cv2 with fallback
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+    cv2 = None
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent.parent
@@ -138,8 +145,8 @@ def main():
         
         # Force cleanup of any residual camera resources
         try:
-            import cv2
-            cv2.destroyAllWindows()
+            if CV2_AVAILABLE and cv2 is not None:
+                cv2.destroyAllWindows()
             import gc
             gc.collect()
         except:
