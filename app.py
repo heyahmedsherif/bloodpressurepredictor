@@ -23,8 +23,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(__file__))
 
-from src.core.ppg_processor import PPGProcessor
-from src.core.health_predictor import HealthPredictor
+from core.rppg_integration import process_video_frames
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -358,4 +357,5 @@ def predict_health():
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=True, host='0.0.0.0', port=port)

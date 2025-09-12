@@ -1,40 +1,54 @@
-# Ultra-minimal Railway Dockerfile for PaPaGei Blood Pressure Predictor
-# Emergency fast build to stop slow cross-compilation
+# Railway-optimized Dockerfile for Flask PPG Health Prediction Suite
+# Explicitly use linux/amd64 platform for Railway compatibility
+FROM --platform=linux/amd64 python:3.10-slim
 
-FROM python:3.10-slim
+# Set environment variables for Python optimization
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
 
-# Install only absolute essentials
+# Install system dependencies for OpenCV and other libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
+    libglib2.0-0 \
+    libgomp1 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgthread-2.0-0 \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Create app directory
 WORKDIR /app
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Copy requirements first for better Docker layer caching
+COPY flask_requirements.txt requirements.txt
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && pip cache purge
+# Force reinstall to ensure AMD64 compatibility
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --force-reinstall -r requirements.txt
 
-# Copy only necessary application files
-COPY streamlit_app.py .
-COPY src/ ./src/
-COPY .streamlit/ ./.streamlit/
+# Copy application code
+COPY app.py .
+COPY generate_ml_models.py .
+COPY templates/ ./templates/
+COPY static/ ./static/
+COPY core/ ./core/
+COPY models/ ./models/
+COPY external/ ./external/
 
-# Set environment variables
-ENV PYTHONPATH=/app
-ENV STREAMLIT_SERVER_PORT=8080
-ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
-ENV STREAMLIT_SERVER_HEADLESS=true
-ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+# Create necessary directories
+RUN mkdir -p /app/models && \
+    mkdir -p /app/static/uploads && \
+    mkdir -p /app/logs
 
-# Create streamlit config if not exists
-RUN mkdir -p .streamlit && \
-    echo '[server]\nport = 8080\naddress = "0.0.0.0"\nheadless = true\n[browser]\ngatherUsageStats = false\n[theme]\nprimaryColor = "#FF6B6B"\nbackgroundColor = "#FFFFFF"\nsecondaryBackgroundColor = "#F0F2F6"\ntextColor = "#262730"' > .streamlit/config.toml
+# Generate ML models if they don't exist
+RUN python generate_ml_models.py || echo "Models already exist or generation optional"
 
-# Expose port
+# Railway uses PORT environment variable (usually 8080)
 EXPOSE 8080
 
-# Run the application
-CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8080", "--server.address=0.0.0.0"]
+# Use optimized gunicorn command for WebRTC and Railway compatibility
+# Increased timeout and keepalive for long-running WebRTC connections
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 4 --timeout 180 --keepalive 5 --max-requests 1000 --worker-tmp-dir /dev/shm --access-logfile - --error-logfile - --log-level info --worker-class sync app:app"]
