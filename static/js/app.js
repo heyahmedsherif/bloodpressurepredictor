@@ -134,9 +134,10 @@ class HealthPredictionApp {
             this.stopRecordingBtn.disabled = false;
             this.analyzeBtn.disabled = true;
 
-            // Show processed video
-            this.video.style.display = 'none';
-            this.canvas.style.display = 'block';
+            // IMPORTANT: Keep video visible for live feed, canvas will be updated with frames
+            // Don't hide the video or we'll get static frames!
+            this.video.style.display = 'block';
+            this.canvas.style.display = 'none';
 
             // Start frame processing
             // Capture at 15 FPS to ensure distinct frames and reduce duplicate captures
@@ -198,18 +199,9 @@ class HealthPredictionApp {
         }
 
         try {
-            // Use requestVideoFrameCallback if available for accurate frame capture
-            if ('requestVideoFrameCallback' in this.video && !this.frameCallbackId) {
-                this.frameCallbackId = this.video.requestVideoFrameCallback(() => {
-                    this.captureAndSendFrame();
-                    this.frameCallbackId = null;
-                });
-            } else {
-                // Fallback: ensure we wait for next animation frame
-                requestAnimationFrame(() => {
-                    this.captureAndSendFrame();
-                });
-            }
+            // Directly capture and send frame
+            // The setInterval already handles timing, no need for additional callbacks
+            await this.captureAndSendFrame();
         } catch (error) {
             console.error('Frame processing error:', error);
         }
@@ -230,13 +222,17 @@ class HealthPredictionApp {
             // Convert to base64
             const frameData = this.canvas.toDataURL('image/jpeg', 0.8);
 
-            // Send to backend for processing
+            // Send to backend for processing with timestamp to ensure uniqueness
             const response = await fetch('/api/process_frame', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ frame: frameData })
+                body: JSON.stringify({ 
+                    frame: frameData,
+                    timestamp: Date.now(),
+                    frameNumber: this.frameCount
+                })
             });
 
             const result = await response.json();
