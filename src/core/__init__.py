@@ -1,1 +1,0 @@
-# PaPaGei Core Components

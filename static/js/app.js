@@ -8,7 +8,7 @@ class HealthPredictionApp {
         this.recording = false;
         this.processing = false;
         this.frameCount = 0;
-        this.maxFrames = 900; // 30 seconds at 30 FPS
+        this.maxFrames = 75; // 5 seconds at 15 FPS
         this.frameInterval = null;
         this.ppgChart = null;
         
@@ -139,7 +139,9 @@ class HealthPredictionApp {
             this.canvas.style.display = 'block';
 
             // Start frame processing
-            this.frameInterval = setInterval(() => this.processFrame(), 1000/30); // 30 FPS
+            // Capture at 15 FPS to ensure distinct frames and reduce duplicate captures
+            // PPG extraction works well at 15-30 FPS
+            this.frameInterval = setInterval(() => this.processFrame(), 1000/15); // 15 FPS
 
             this.hideLoading();
             this.showSuccess('Recording started! Keep your face in view.');
@@ -196,10 +198,34 @@ class HealthPredictionApp {
         }
 
         try {
+            // Use requestVideoFrameCallback if available for accurate frame capture
+            if ('requestVideoFrameCallback' in this.video && !this.frameCallbackId) {
+                this.frameCallbackId = this.video.requestVideoFrameCallback(() => {
+                    this.captureAndSendFrame();
+                    this.frameCallbackId = null;
+                });
+            } else {
+                // Fallback: ensure we wait for next animation frame
+                requestAnimationFrame(() => {
+                    this.captureAndSendFrame();
+                });
+            }
+        } catch (error) {
+            console.error('Frame processing error:', error);
+        }
+    }
+    
+    async captureAndSendFrame() {
+        if (!this.recording) return;
+        
+        try {
             // Capture frame from video
             this.canvas.width = this.video.videoWidth;
             this.canvas.height = this.video.videoHeight;
             this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+            
+            // Add visual recording indicators as overlay
+            this.drawRecordingIndicators();
 
             // Convert to base64
             const frameData = this.canvas.toDataURL('image/jpeg', 0.8);
@@ -219,18 +245,20 @@ class HealthPredictionApp {
                 this.frameCount = result.frames_captured;
                 this.updateProgress();
 
-                // Display processed frame if available
-                if (result.processed_frame) {
-                    const img = new Image();
-                    img.onload = () => {
-                        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-                        this.ctx.drawImage(img, 0, 0);
-                    };
-                    img.src = result.processed_frame;
-                }
+                // Don't display processed frame - keep showing live video
+                // The processed frame contains face detection boxes which make it appear frozen
+                // We'll add visual indicators separately without replacing the live feed
 
-                // Auto-stop when max frames reached
-                if (this.frameCount >= this.maxFrames) {
+                // Auto-stop when max frames reached or server indicates auto-stop
+                // Check this.recording to prevent multiple stop calls
+                if (this.recording && (this.frameCount >= this.maxFrames || result.auto_stopped)) {
+                    console.log('Auto-stopping recording: max frames reached');
+                    // Clear interval immediately to prevent more frames
+                    if (this.frameInterval) {
+                        clearInterval(this.frameInterval);
+                        this.frameInterval = null;
+                    }
+                    this.recording = false; // Prevent multiple calls
                     await this.stopRecording();
                 }
             }
@@ -246,21 +274,79 @@ class HealthPredictionApp {
         this.recordingProgress.style.width = `${progress}%`;
         this.recordingProgress.setAttribute('aria-valuenow', progress);
     }
+    
+    drawRecordingIndicators() {
+        // Add recording indicator (red circle)
+        this.ctx.fillStyle = 'red';
+        this.ctx.beginPath();
+        this.ctx.arc(30, 30, 10, 0, 2 * Math.PI);
+        this.ctx.fill();
+        
+        // Add "REC" text
+        this.ctx.fillStyle = 'red';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.fillText(`REC ${this.frameCount}/${this.maxFrames}`, 50, 35);
+        
+        // Add timestamp to prove continuous recording
+        const timestamp = new Date().toLocaleTimeString();
+        this.ctx.fillStyle = 'white';
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeText(timestamp, 10, this.canvas.height - 10);
+        this.ctx.fillText(timestamp, 10, this.canvas.height - 10);
+        
+        // Add progress bar
+        const barWidth = 200;
+        const barHeight = 10;
+        const barX = this.canvas.width - barWidth - 20;
+        const barY = 20;
+        const progress = this.frameCount / this.maxFrames;
+        
+        // Background
+        this.ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
+        this.ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // Progress
+        this.ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+        this.ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+    }
 
     async analyzeResults() {
+        console.log('Starting analysis...');
         try {
             this.showLoading('Analyzing PPG Data', 'Processing heart rate and signal quality...');
 
+            // Add timeout controller
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                console.log('Request timed out');
+                controller.abort();
+            }, 10000); // 10 second timeout
+
+            console.log('Sending request to /api/get_results');
             const response = await fetch('/api/get_results', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                }
+                },
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
+            console.log('Response received:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
             const result = await response.json();
+            console.log('Result parsed:', result);
+            
+            // Force hide loading first
+            this.hideLoading();
+            
             if (!result.success) {
-                throw new Error(result.error);
+                throw new Error(result.error || 'Analysis failed');
             }
 
             // Display results
@@ -268,13 +354,16 @@ class HealthPredictionApp {
             this.ppgResults.style.display = 'block';
             this.ppgResults.scrollIntoView({ behavior: 'smooth' });
 
-            this.hideLoading();
             this.showSuccess('PPG analysis completed successfully!');
 
         } catch (error) {
-            this.hideLoading();
-            this.showError('Failed to analyze results: ' + error.message);
             console.error('Analysis error:', error);
+            this.hideLoading();
+            if (error.name === 'AbortError') {
+                this.showError('Analysis timed out. Please try again with shorter recording.');
+            } else {
+                this.showError('Failed to analyze results: ' + error.message);
+            }
         }
     }
 
@@ -294,16 +383,19 @@ class HealthPredictionApp {
 
     async predictHealth() {
         try {
+            console.log('Starting health prediction...');
             this.showLoading('Predicting Health Metrics', 'Analyzing demographics and PPG data...');
 
-            // Get patient demographics
+            // Get patient demographics with defaults if elements don't exist
             const demographics = {
-                age: parseInt(document.getElementById('patientAge').value),
-                gender: document.getElementById('patientGender').value,
-                height: parseInt(document.getElementById('patientHeight').value),
-                weight: parseInt(document.getElementById('patientWeight').value),
+                age: parseInt(document.getElementById('patientAge')?.value || '47'),
+                gender: document.getElementById('patientGender')?.value || 'Male',
+                height: parseInt(document.getElementById('patientHeight')?.value || '173'),
+                weight: parseInt(document.getElementById('patientWeight')?.value || '83'),
                 heart_rate: this.lastHeartRate || 75
             };
+
+            console.log('Sending demographics:', demographics);
 
             const response = await fetch('/api/predict_health', {
                 method: 'POST',
@@ -313,23 +405,46 @@ class HealthPredictionApp {
                 body: JSON.stringify(demographics)
             });
 
+            console.log('Response received:', response.status);
             const result = await response.json();
+            console.log('Result:', result);
+            
             if (!result.success) {
-                throw new Error(result.error);
+                throw new Error(result.error || 'Unknown error');
             }
 
             // Display health predictions
+            console.log('Displaying predictions...');
             this.displayHealthPredictions(result.predictions);
             this.healthPredictions.style.display = 'block';
             this.healthPredictions.scrollIntoView({ behavior: 'smooth' });
 
+            console.log('Hiding loading modal...');
             this.hideLoading();
             this.showSuccess('Health predictions completed!');
+            console.log('Health prediction completed successfully');
 
         } catch (error) {
-            this.hideLoading();
-            this.showError('Failed to predict health metrics: ' + error.message);
             console.error('Health prediction error:', error);
+            console.log('Attempting to hide loading modal after error...');
+            
+            // Force hide the modal as fallback
+            try {
+                this.hideLoading();
+            } catch (hideError) {
+                console.error('Error hiding loading modal:', hideError);
+                // Force hide using DOM manipulation
+                const modal = document.getElementById('loadingModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                    modal.classList.remove('show');
+                    document.body.classList.remove('modal-open');
+                    const backdrop = document.querySelector('.modal-backdrop');
+                    if (backdrop) backdrop.remove();
+                }
+            }
+            
+            this.showError('Failed to predict health metrics: ' + error.message);
         }
     }
 
@@ -406,6 +521,9 @@ class HealthPredictionApp {
     }
 
     startNewSession() {
+        // Stop the camera first to ensure clean reset
+        this.stopCamera();
+        
         // Reset all states
         this.resetRecording();
         this.ppgResults.style.display = 'none';
@@ -417,7 +535,11 @@ class HealthPredictionApp {
         this.ppgChart.data.datasets[0].data = [];
         this.ppgChart.update();
 
-        this.showSuccess('New session started. You can begin recording again.');
+        // Show message with instruction to restart camera
+        this.showSuccess('New session started. Please click "Start Camera" to begin.');
+        
+        // Enable the start camera button
+        this.startCameraBtn.disabled = false;
     }
 
     resetRecording() {
@@ -433,7 +555,7 @@ class HealthPredictionApp {
         this.startRecordingBtn.style.display = 'block';
         this.recordingControls.style.display = 'none';
         this.recordingProgress.style.width = '0%';
-        this.frameCounter.textContent = '0 / 900 frames';
+        this.frameCounter.textContent = '0 / 150 frames';
     }
 
     showLoading(title, subtitle) {
@@ -443,7 +565,48 @@ class HealthPredictionApp {
     }
 
     hideLoading() {
-        this.loadingModal.hide();
+        try {
+            // Remove focus from the modal first
+            const modal = document.getElementById('loadingModal');
+            if (modal && modal.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+            
+            // Hide using Bootstrap modal method
+            this.loadingModal.hide();
+            
+            // Force cleanup after a short delay
+            setTimeout(() => {
+                if (modal) {
+                    modal.style.display = 'none';
+                    modal.classList.remove('show');
+                    modal.removeAttribute('aria-hidden');
+                    modal.removeAttribute('aria-modal');
+                    modal.removeAttribute('role');
+                }
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                // Remove all backdrops
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+            }, 300);
+        } catch (error) {
+            console.error('Error hiding loading modal:', error);
+            // Force hide as fallback
+            const modal = document.getElementById('loadingModal');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+                modal.removeAttribute('aria-hidden');
+                modal.removeAttribute('aria-modal');
+            }
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+        }
     }
 
     showError(message) {
@@ -454,6 +617,37 @@ class HealthPredictionApp {
     showSuccess(message) {
         document.getElementById('successMessage').textContent = message;
         this.successToast.show();
+    }
+    
+    forceCloseModal() {
+        console.log('Force closing modal...');
+        try {
+            // Hide using Bootstrap method first
+            this.loadingModal.hide();
+        } catch (e) {
+            console.error('Bootstrap hide failed:', e);
+        }
+        
+        // Force hide with DOM manipulation
+        const modal = document.getElementById('loadingModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('show');
+            modal.removeAttribute('aria-hidden');
+            modal.removeAttribute('aria-modal');
+            modal.removeAttribute('role');
+        }
+        
+        // Clean up body classes and styles
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        
+        // Remove all backdrops
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+        
+        console.log('Modal force closed');
     }
 }
 
