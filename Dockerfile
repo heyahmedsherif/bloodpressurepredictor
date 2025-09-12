@@ -53,12 +53,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE ${PORT}
 
 # Run with gunicorn for production with Railway-specific configuration
-CMD gunicorn \
-    --bind 0.0.0.0:${PORT:-5000} \
-    --workers 2 \
-    --threads 2 \
-    --timeout 120 \
-    --access-logfile - \
-    --error-logfile - \
-    --log-level info \
-    app:app
+# Using exec form for better signal handling
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 2 --timeout 120 --access-logfile - --error-logfile - --log-level debug app:app"]
