@@ -1,5 +1,6 @@
 # Railway-optimized Dockerfile for Flask PPG Health Prediction Suite
-FROM python:3.10-slim
+# Explicitly use linux/amd64 platform for Railway compatibility
+FROM --platform=linux/amd64 python:3.10-slim
 
 # Set environment variables for Python optimization
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -24,8 +25,9 @@ WORKDIR /app
 COPY flask_requirements.txt requirements.txt
 
 # Install Python dependencies
+# Force reinstall to ensure AMD64 compatibility
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir --force-reinstall -r requirements.txt
 
 # Copy application code
 COPY app.py .
