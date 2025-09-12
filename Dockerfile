@@ -32,15 +32,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY app.py .
 COPY generate_ml_models.py .
-COPY start.sh .
 COPY templates/ ./templates/
 COPY static/ ./static/
 COPY core/ ./core/
 COPY models/ ./models/
 COPY external/ ./external/
-
-# Make startup script executable
-RUN chmod +x start.sh
 
 # Create necessary directories
 RUN mkdir -p /app/models && \
@@ -50,9 +46,9 @@ RUN mkdir -p /app/models && \
 # Generate ML models if they don't exist
 RUN python generate_ml_models.py || echo "Models already exist or generation optional"
 
-# Remove health check from Dockerfile - Railway handles this separately
-# EXPOSE is informational only
-EXPOSE 5000
+# Railway uses PORT environment variable (usually 8080)
+EXPOSE 8080
 
-# Use startup script for better debugging
-CMD ["./start.sh"]
+# Use direct gunicorn command for Railway compatibility
+# Railway sets PORT at runtime, we use shell expansion
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 2 --timeout 120 --worker-tmp-dir /dev/shm --access-logfile - --error-logfile - --log-level info --preload app:app"]

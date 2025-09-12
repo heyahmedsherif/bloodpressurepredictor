@@ -570,11 +570,6 @@ def predict_health():
         logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/health')
-def health_check():
-    """Health check endpoint for Railway"""
-    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
-
 if __name__ == '__main__':
     # Get port from environment variable (Railway provides this)
     port = int(os.environ.get('PORT', 5001))
