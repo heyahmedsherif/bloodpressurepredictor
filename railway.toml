@@ -1,0 +1,42 @@
+# Railway Configuration for PPG Health Prediction Suite
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# Health check configuration
+healthcheckPath = "/health"
+healthcheckTimeout = 10
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Resource configuration
+numReplicas = 1
+# Memory limit in MB (adjust based on your Railway plan)
+memoryLimitMB = 512
+
+# Environment variables that Railway should set
+[deploy.env]
+FLASK_ENV = "production"
+PYTHONUNBUFFERED = "1"
+PYTHONDONTWRITEBYTECODE = "1"
+
+# Build environment variables
+[build.env]
+PYTHON_VERSION = "3.10"
+
+# Service configuration
+[[services]]
+name = "ppg-health-app"
+# Internal port that the app listens on
+internalPort = 5000
+# Protocol
+protocol = "http"
+
+# Startup command (optional, as it's in Dockerfile)
+# startCommand = "gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app"
+
+# Domain configuration (Railway will auto-generate one)
+[[services.domains]]
+# Railway will provide a domain like: ppg-health-app.up.railway.app

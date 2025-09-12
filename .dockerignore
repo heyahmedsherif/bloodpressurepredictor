@@ -67,12 +67,36 @@ node_modules/
 
 # Large model files (should be downloaded at runtime if needed)
 models/large/
-*.pkl
 *.h5
 *.pth
+# Note: We need .pkl files for our ML models, so don't ignore them
 
 # Local development
 requirements-local.txt
+requirements-minimal.txt
 environment.yml
 setup_conda.sh
 fix_environment.sh
+
+# Archive and old files
+archive/
+old/
+backup/
+
+# Streamlit files (we're using Flask)
+streamlit_app.py
+.streamlit/
+
+# Other Dockerfiles and configs
+Dockerfile.flask
+Dockerfile.streamlit
+railway.flask.json
+
+# Scripts not needed in production
+scripts/
+tests/
+test_*.py
+
+# Claude-specific files
+.claude/
+CLAUDE.md
