@@ -1,0 +1,31 @@
+# Initial Server Setup Commands
+# Run these in your VS Code terminal connected to the DigitalOcean droplet
+
+# 1. Create development directories
+mkdir -p /opt/apps
+mkdir -p /home/projects
+cd /opt/apps
+
+# 2. Clone your repository
+git clone https://github.com/heyahmedsherif/bloodpressurepredictor.git ppg-app
+cd ppg-app
+git checkout camera-testing
+
+# 3. Alternative: If you want to develop in home directory
+cd ~
+git clone https://github.com/heyahmedsherif/bloodpressurepredictor.git ppg-app
+cd ppg-app
+git checkout camera-testing
+
+# 4. Install Docker (if not already installed)
+curl -fsSL https://get.docker.com -o get-docker.sh
+sh get-docker.sh
+rm get-docker.sh
+
+# 5. Build and run the Docker container
+docker build -f Dockerfile.flask -t ppg-app .
+docker run -d --name ppg-health --restart unless-stopped -p 5000:5000 ppg-app
+
+# 6. Check if it's running
+docker ps
+curl http://localhost:5000

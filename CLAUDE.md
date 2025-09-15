@@ -182,21 +182,86 @@ ps aux | grep python
 lsof -i :5000
 ```
 
+## DigitalOcean Deployment (NEW - September 15, 2025)
+
+### Server Setup Completed
+- Created DigitalOcean droplet with Ubuntu 22.04 LTS x64
+- Configured VS Code Remote SSH for development
+- Installed Miniconda and Docker on server
+- Set up development environment in `/opt/apps/`
+
+### Deployment Files Created
+1. **digitalocean-deployment.md** - Complete deployment guide
+2. **deploy-to-digitalocean.sh** - Automated deployment script
+3. **server-setup-commands.txt** - Quick reference commands
+
+### VS Code Remote SSH Configuration
+```
+Host do-ppg
+    HostName YOUR_DROPLET_IP
+    User root
+    Port 22
+    PasswordAuthentication yes
+```
+
+### Miniconda Installation on Server
+```bash
+# Installed at /root/miniconda3
+conda create -n ppg-app python=3.10 -y
+conda activate ppg-app
+```
+
+### Claude Code Installation on Server
+```bash
+# Installed at ~/.local/bin/claude
+export PATH="$HOME/.local/bin:$PATH"
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+```
+
+## Additional Context from Today's Session
+
+### Questions Answered About Frame Processing
+- **Frame Processing**: Processes frames incrementally as they arrive, not all at once
+- **Minimum Frames**: 75 frames required (5 seconds at 15 FPS)
+- **Expected FPS**: ~15 FPS (captures every ~67ms)
+- **Processing Window**: 5-second recording captures 4-5 heartbeats
+
+### Unused Imports Identified
+- `PPGProcessor` and `SimplePPGProcessor` - Can be removed (dead code)
+- `MLHealthPredictor` - Must keep (actively used for predictions)
+
+### Cloud Provider Analysis
+- **x64/AMD64 Support**: All major providers (DigitalOcean, Vultr, Hetzner, etc.)
+- **ARM Support**: Oracle Cloud (free tier), AWS Graviton, Hetzner CAX
+- **Best Value**: Hetzner Cloud (€3.79/month)
+- **Easiest Setup**: DigitalOcean ($6/month)
+- **Free Option**: Oracle Cloud (always free tier)
+
+### Current Deployment Status
+- Repository pushed to `camera-testing` branch
+- Docker container tested and working locally
+- DigitalOcean server provisioned and configured
+- Ready for production deployment
+
 ## Next Steps and TODOs
 
-1. Consider implementing proper session management for multi-user support
-2. Add WebSocket for real-time frame upload progress
-3. Implement proper error handling for camera access denial
-4. Consider adding Redis for state management in multi-worker scenarios
-5. Optimize PPG processing performance
+1. Complete DigitalOcean deployment with Docker container
+2. Set up Nginx reverse proxy on server
+3. Configure SSL certificate for HTTPS
+4. Consider implementing proper session management for multi-user support
+5. Add WebSocket for real-time frame upload progress
+6. Implement proper error handling for camera access denial
+7. Consider adding Redis for state management in multi-worker scenarios
+8. Optimize PPG processing performance
 
 ## Contact and Repository Info
 
 - GitHub: https://github.com/heyahmedsherif/bloodpressurepredictor
 - Branch for testing: `camera-testing`
 - Docker image: `ppg-health-app:latest`
+- Deployment Scripts: `deploy-to-digitalocean.sh`, `digitalocean-deployment.md`
 
 ---
 
-*Last Updated: September 12, 2025*
+*Last Updated: September 15, 2025*
 *This file should be reviewed at the start of each Claude session for context*
