@@ -8,7 +8,7 @@ class HealthPredictionApp {
         this.recording = false;
         this.processing = false;
         this.frameCount = 0;
-        this.maxFrames = 75; // 5 seconds at 15 FPS
+        this.maxFrames = 150; // 7.5 seconds at 20 FPS for better signal quality
         this.frameInterval = null;
         this.ppgChart = null;
         
@@ -140,9 +140,9 @@ class HealthPredictionApp {
             this.canvas.style.display = 'none';
 
             // Start frame processing
-            // Capture at 15 FPS to ensure distinct frames and reduce duplicate captures
-            // PPG extraction works well at 15-30 FPS
-            this.frameInterval = setInterval(() => this.processFrame(), 1000/15); // 15 FPS
+            // Capture at 20 FPS for reliable unique frame capture
+            // 20 FPS balances quality with browser capture capabilities
+            this.frameInterval = setInterval(() => this.processFrame(), 1000/20); // 20 FPS
 
             this.hideLoading();
             this.showSuccess('Recording started! Keep your face in view.');

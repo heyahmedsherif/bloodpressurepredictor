@@ -14,6 +14,14 @@ from scipy import signal as scipy_signal
 from scipy.signal import find_peaks
 import logging
 
+# Try to import MediaPipe
+try:
+    import mediapipe as mp
+    MEDIAPIPE_AVAILABLE = True
+except ImportError:
+    MEDIAPIPE_AVAILABLE = False
+    print("MediaPipe not installed. Falling back to Haar Cascade.")
+
 # Add webcam-pulse-detector to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'external', 'webcam-pulse-detector'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'external', 'webcam-pulse-detector', 'lib'))
@@ -21,57 +29,104 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'external', 'webcam-p
 logger = logging.getLogger(__name__)
 
 class SimplifiedRPPGProcessor:
-    """Simplified rPPG processor based on webcam-pulse-detector"""
-    
+    """Simplified rPPG processor using MediaPipe or Haar Cascade for face detection"""
+
     def __init__(self):
         self.buffer_size = 250
         self.data_buffer = []
         self.times = []
         self.fps = 30  # Default FPS
         self.bpm = 0
+        self.face_detector = None
         self.face_cascade = None
-        
-        # Try to load face cascade
-        cascade_paths = [
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml',
-            cv2.data.haarcascades + 'haarcascade_frontalface_alt.xml',
-            'haarcascade_frontalface_default.xml',
-            'haarcascade_frontalface_alt.xml'
-        ]
-        
-        for path in cascade_paths:
-            if os.path.exists(path):
-                self.face_cascade = cv2.CascadeClassifier(path)
-                if not self.face_cascade.empty():
-                    logger.info(f"Face cascade loaded from {path}")
-                    break
-        
-        if self.face_cascade is None or self.face_cascade.empty():
-            logger.warning("Could not load face cascade - face detection disabled")
+
+        # Try MediaPipe first
+        if MEDIAPIPE_AVAILABLE:
+            try:
+                self.mp_face_mesh = mp.solutions.face_mesh
+                self.face_detector = self.mp_face_mesh.FaceMesh(
+                    static_image_mode=False,  # Video mode for better tracking
+                    max_num_faces=1,
+                    refine_landmarks=True,
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5
+                )
+                logger.info("MediaPipe Face Mesh initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize MediaPipe: {e}")
+                self.face_detector = None
+
+        # Fallback to Haar Cascade if MediaPipe not available
+        if self.face_detector is None:
+            cascade_paths = [
+                cv2.data.haarcascades + 'haarcascade_frontalface_default.xml',
+                cv2.data.haarcascades + 'haarcascade_frontalface_alt.xml',
+                'haarcascade_frontalface_default.xml',
+                'haarcascade_frontalface_alt.xml'
+            ]
+
+            for path in cascade_paths:
+                if os.path.exists(path):
+                    self.face_cascade = cv2.CascadeClassifier(path)
+                    if not self.face_cascade.empty():
+                        logger.info(f"Haar Cascade loaded from {path}")
+                        break
+
+            if self.face_cascade is None or self.face_cascade.empty():
+                logger.warning("Could not load face detector - using center region")
     
     def detect_face(self, frame):
         """Detect face in frame and return forehead region"""
-        if self.face_cascade is None or self.face_cascade.empty():
-            # Return center region if no face detection
-            h, w = frame.shape[:2]
-            return frame[h//4:h//2, w//3:2*w//3]
-        
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
-        
-        if len(faces) > 0:
-            # Get the largest face
-            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-            
-            # Extract forehead region (top 40% of face, middle 60% width)
-            forehead_x = int(x + w * 0.2)
-            forehead_y = int(y + h * 0.05)
-            forehead_w = int(w * 0.6)
-            forehead_h = int(h * 0.4)
-            
-            return frame[forehead_y:forehead_y+forehead_h, 
-                        forehead_x:forehead_x+forehead_w]
-        
+
+        # Try MediaPipe first
+        if self.face_detector is not None:
+            # Convert BGR to RGB for MediaPipe
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.face_detector.process(rgb_frame)
+
+            if results.multi_face_landmarks:
+                h, w = frame.shape[:2]
+                landmarks = results.multi_face_landmarks[0]
+
+                # MediaPipe forehead landmarks (approximately indices 9, 10, 67, 69, 104, 108, 109, 151)
+                # We'll use a simplified approach - get upper portion of face
+                # Get face bounding box from landmarks
+                x_coords = [int(l.x * w) for l in landmarks.landmark]
+                y_coords = [int(l.y * h) for l in landmarks.landmark]
+
+                face_x_min = max(0, min(x_coords))
+                face_x_max = min(w, max(x_coords))
+                face_y_min = max(0, min(y_coords))
+                face_y_max = min(h, max(y_coords))
+
+                # Extract smaller, more stable forehead region (top 20% of face, middle 40% width)
+                # Smaller ROI gives more stable signal with less noise
+                forehead_x = int(face_x_min + (face_x_max - face_x_min) * 0.3)
+                forehead_y = int(face_y_min + (face_y_max - face_y_min) * 0.05)
+                forehead_w = int((face_x_max - face_x_min) * 0.4)
+                forehead_h = int((face_y_max - face_y_min) * 0.2)
+
+                return frame[forehead_y:forehead_y+forehead_h,
+                            forehead_x:forehead_x+forehead_w]
+
+        # Fallback to Haar Cascade
+        elif self.face_cascade is not None and not self.face_cascade.empty():
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+
+            if len(faces) > 0:
+                # Get the largest face
+                x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+
+                # Extract forehead region (top 40% of face, middle 60% width)
+                forehead_x = int(x + w * 0.2)
+                forehead_y = int(y + h * 0.05)
+                forehead_w = int(w * 0.6)
+                forehead_h = int(h * 0.4)
+
+                return frame[forehead_y:forehead_y+forehead_h,
+                            forehead_x:forehead_x+forehead_w]
+
         # Return center region if no face found
         h, w = frame.shape[:2]
         return frame[h//4:h//2, w//3:2*w//3]
@@ -135,13 +190,15 @@ class SimplifiedRPPGProcessor:
             # Detrend signal
             signal = scipy_signal.detrend(signal)
             
-            # Apply bandpass filter (0.75-4 Hz for 45-240 BPM)
+            # Apply bandpass filter (0.8-3.0 Hz for 48-180 BPM)
+            # Tighter band for better noise rejection
             nyquist = fps / 2
-            low = 0.75 / nyquist
-            high = min(4.0 / nyquist, 0.99)
-            
+            low = 0.8 / nyquist
+            high = min(3.0 / nyquist, 0.99)
+
             if low < high:
-                b, a = scipy_signal.butter(2, [low, high], btype='band')
+                # Higher order filter for sharper cutoff
+                b, a = scipy_signal.butter(4, [low, high], btype='band')
                 signal = scipy_signal.filtfilt(b, a, signal)
             
             # Compute FFT
@@ -202,7 +259,15 @@ class SimplifiedRPPGProcessor:
         try:
             # Extract color signal
             signal = self.extract_color_signal(frames)
-            
+
+            # Detrend the signal to remove drift
+            signal = scipy_signal.detrend(signal, type='linear')
+
+            # Apply moving average to smooth noise
+            window_size = 3
+            if len(signal) > window_size:
+                signal = np.convolve(signal, np.ones(window_size)/window_size, mode='same')
+
             # Normalize signal
             signal = (signal - np.mean(signal)) / (np.std(signal) + 1e-10)
             

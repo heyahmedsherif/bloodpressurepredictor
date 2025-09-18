@@ -24,6 +24,14 @@ try:
 except ImportError as e:
     print(f"Warning: OpenCV/PIL not available: {e}")
     OPENCV_AVAILABLE = False
+
+# Try to import MediaPipe for better face detection
+try:
+    import mediapipe as mp
+    MEDIAPIPE_AVAILABLE = True
+except ImportError:
+    MEDIAPIPE_AVAILABLE = False
+    print("MediaPipe not installed. Using Haar Cascade for face detection.")
     
 try:
     from scipy import signal as scipy_signal
@@ -87,18 +95,37 @@ class CameraProcessor:
         self.frames = []
         self.face_frames = []  # Store face ROI frames for rPPG processing
         self.ppg_values = []
+        self.face_detector = None
         self.face_cascade = None
-        self.max_frames = 75  # 5 seconds at 15 FPS for better frame distinction
-        self.target_fps = 15.0  # Match frontend capture rate
-        
-        # Initialize face detection if OpenCV is available
-        if OPENCV_AVAILABLE:
+        self.max_frames = 150  # 7.5 seconds at 20 FPS for better PPG detection
+        self.target_fps = 20.0  # Optimal balance between quality and browser capabilities
+
+        # Initialize face detection - prefer MediaPipe over Haar Cascade
+        if MEDIAPIPE_AVAILABLE:
+            try:
+                self.mp_face_mesh = mp.solutions.face_mesh
+                self.face_detector = self.mp_face_mesh.FaceMesh(
+                    static_image_mode=False,
+                    max_num_faces=1,
+                    refine_landmarks=True,
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5
+                )
+                logger.info("Using MediaPipe for face detection")
+            except Exception as e:
+                logger.warning(f"Failed to initialize MediaPipe: {e}")
+                self.face_detector = None
+
+        # Fallback to Haar Cascade if MediaPipe not available
+        if self.face_detector is None and OPENCV_AVAILABLE:
             try:
                 self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                logger.info("Using Haar Cascade for face detection (fallback)")
             except Exception as e:
                 logger.warning(f"Face cascade not available: {e}")
-        else:
-            logger.warning("OpenCV not available - face detection disabled")
+
+        if self.face_detector is None and self.face_cascade is None:
+            logger.warning("No face detection available - will use center region")
     
     def process_frame(self, frame_data):
         """Process a single frame for rPPG extraction using research-based methods."""
@@ -119,10 +146,11 @@ class CameraProcessor:
                 if len(self.frames) > 0:
                     prev_frame = self.frames[-1]
                     frame_diff = np.mean(np.abs(frame.astype(float) - prev_frame.astype(float)))
-                    if len(self.frames) < 5 or len(self.frames) % 30 == 0:  # Log first few and every 30th
+                    if len(self.frames) < 5 or len(self.frames) % 20 == 0:  # Log first few and every 20th
                         logger.info(f"Frame {len(self.frames)}: diff from prev = {frame_diff:.2f}")
-                    if frame_diff < 0.1:  # Very small difference
-                        logger.warning(f"Frame {len(self.frames)} is nearly identical to previous (diff={frame_diff:.4f})")
+                    # Only warn if truly duplicate (not just similar)
+                    if frame_diff < 0.01:  # Only flag true duplicates
+                        logger.warning(f"Frame {len(self.frames)} is duplicate (diff={frame_diff:.4f})")
                 
                 self.frames.append(frame.copy())
                 
@@ -174,27 +202,57 @@ class CameraProcessor:
     
     def _extract_face_roi(self, frame):
         """Extract face region of interest for rPPG processing."""
-        if self.face_cascade is None:
-            return None
-        
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
-        
-        if len(faces) > 0:
-            (x, y, w, h) = faces[0]
-            # Extract full face region for rPPG analysis
-            # Use a slightly larger region to ensure good signal
-            margin = 0.1
-            roi_x = max(0, int(x - w * margin))
-            roi_y = max(0, int(y - h * margin)) 
-            roi_w = min(frame.shape[1] - roi_x, int(w * (1 + 2 * margin)))
-            roi_h = min(frame.shape[0] - roi_y, int(h * (1 + 2 * margin)))
-            
-            face_roi = frame[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w]
-            
-            if face_roi.size > 0:
-                return face_roi
-        
+
+        # Try MediaPipe first
+        if self.face_detector is not None:
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.face_detector.process(rgb_frame)
+
+            if results.multi_face_landmarks:
+                h, w = frame.shape[:2]
+                landmarks = results.multi_face_landmarks[0]
+
+                # Get face bounding box from landmarks
+                x_coords = [int(l.x * w) for l in landmarks.landmark]
+                y_coords = [int(l.y * h) for l in landmarks.landmark]
+
+                face_x_min = max(0, min(x_coords))
+                face_x_max = min(w, max(x_coords))
+                face_y_min = max(0, min(y_coords))
+                face_y_max = min(h, max(y_coords))
+
+                # Extract face region with slight margin for better signal
+                margin = 0.1
+                roi_x = max(0, int(face_x_min - (face_x_max - face_x_min) * margin))
+                roi_y = max(0, int(face_y_min - (face_y_max - face_y_min) * margin))
+                roi_w = min(w - roi_x, int((face_x_max - face_x_min) * (1 + 2 * margin)))
+                roi_h = min(h - roi_y, int((face_y_max - face_y_min) * (1 + 2 * margin)))
+
+                face_roi = frame[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w]
+
+                if face_roi.size > 0:
+                    return face_roi
+
+        # Fallback to Haar Cascade
+        elif self.face_cascade is not None:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
+
+            if len(faces) > 0:
+                (x, y, w, h) = faces[0]
+                # Extract full face region for rPPG analysis
+                # Use a slightly larger region to ensure good signal
+                margin = 0.1
+                roi_x = max(0, int(x - w * margin))
+                roi_y = max(0, int(y - h * margin))
+                roi_w = min(frame.shape[1] - roi_x, int(w * (1 + 2 * margin)))
+                roi_h = min(frame.shape[0] - roi_y, int(h * (1 + 2 * margin)))
+
+                face_roi = frame[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w]
+
+                if face_roi.size > 0:
+                    return face_roi
+
         return None
     
     def _add_visual_feedback(self, frame):
@@ -221,13 +279,44 @@ class CameraProcessor:
                          (0, 255, 0), -1)
         
         # Face detection visualization
-        if self.face_cascade is not None:
+        if self.face_detector is not None:
+            # MediaPipe visualization
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.face_detector.process(rgb_frame)
+
+            if results.multi_face_landmarks:
+                h, w = frame.shape[:2]
+                landmarks = results.multi_face_landmarks[0]
+
+                # Get face bounding box
+                x_coords = [int(l.x * w) for l in landmarks.landmark]
+                y_coords = [int(l.y * h) for l in landmarks.landmark]
+
+                x_min = max(0, min(x_coords))
+                x_max = min(w, max(x_coords))
+                y_min = max(0, min(y_coords))
+                y_max = min(h, max(y_coords))
+
+                # Draw face bounding box
+                cv2.rectangle(display_frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+
+                # Draw forehead region
+                roi_y = y_min
+                roi_h = int((y_max - y_min) * 0.3)
+                roi_x = int(x_min + (x_max - x_min) * 0.2)
+                roi_w = int((x_max - x_min) * 0.6)
+                cv2.rectangle(display_frame, (roi_x, roi_y), (roi_x+roi_w, roi_y+roi_h), (255, 0, 0), 2)
+                cv2.putText(display_frame, "Forehead ROI", (roi_x, roi_y - 5),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+        elif self.face_cascade is not None:
+            # Haar Cascade visualization (fallback)
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
-            
+
             for (x, y, w, h) in faces:
                 cv2.rectangle(display_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                
+
                 # ROI box (forehead region)
                 roi_y = max(0, y + int(h * 0.1))
                 roi_h = max(1, int(h * 0.25))
