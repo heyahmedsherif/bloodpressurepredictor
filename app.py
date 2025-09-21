@@ -599,10 +599,20 @@ def get_results():
 def predict_health():
     """Predict health metrics from PPG data using ML models."""
     try:
-        from core.ml_health_predictor import MLHealthPredictor
-        
+        # Try enhanced predictor first, fallback to original
+        try:
+            from core.enhanced_ml_predictor import EnhancedMLHealthPredictor
+            predictor = EnhancedMLHealthPredictor()
+            use_enhanced = True
+            logger.info("Using enhanced predictor with LDL/HDL models")
+        except Exception as e:
+            logger.info(f"Enhanced predictor not available: {e}, using original")
+            from core.ml_health_predictor import MLHealthPredictor
+            predictor = MLHealthPredictor()
+            use_enhanced = False
+
         data = request.get_json()
-        
+
         # Get patient demographics
         demographics = {
             'age': data.get('age', 47),
@@ -611,10 +621,11 @@ def predict_health():
             'weight': data.get('weight', 83)
         }
         heart_rate = data.get('heart_rate', 75)
-        
+
         # Calculate BMI
         bmi = demographics['weight'] / ((demographics['height']/100) ** 2)
-        
+        demographics['bmi'] = bmi
+
         # Get PPG signal from the last recording if available
         ppg_signal = None
         if hasattr(camera_processor, 'ppg_signal') and camera_processor.ppg_signal:
@@ -626,18 +637,51 @@ def predict_health():
             import numpy as np
             t = np.linspace(0, 5, 150)  # 5 seconds at 30 fps
             ppg_signal = np.sin(2 * np.pi * 1.2 * t)  # ~72 bpm
-        
-        # Use ML predictor
-        predictor = MLHealthPredictor()
-        predictions = predictor.predict_health_metrics(
-            ppg_signal=ppg_signal,
-            demographics=demographics,
-            heart_rate=heart_rate
-        )
-        
-        logger.info(f"ML Health Predictions: BP={predictions['blood_pressure']['systolic']}/{predictions['blood_pressure']['diastolic']}, "
-                   f"Glucose={predictions['glucose']['value']}, Cholesterol={predictions['cholesterol']['value']}")
-        
+
+        # Get predictions based on predictor type
+        if use_enhanced:
+            # Enhanced predictor with LDL/HDL breakdown
+            all_metrics = predictor.predict_all_metrics(ppg_signal, demographics)
+
+            # Format for frontend
+            predictions = {
+                'blood_pressure': {
+                    'systolic': round(all_metrics['systolic'], 1),
+                    'diastolic': round(all_metrics['diastolic'], 1),
+                    'status': 'Normal' if all_metrics['systolic'] < 130 else 'Elevated'
+                },
+                'glucose': {
+                    'value': round(all_metrics['glucose'], 1),
+                    'status': 'Normal' if all_metrics['glucose'] < 100 else 'Elevated'
+                },
+                'cholesterol': {
+                    'value': round(all_metrics['cholesterol_total_original'], 1),
+                    'status': 'Normal' if all_metrics['cholesterol_total_original'] < 200 else 'Borderline High',
+                    # New LDL/HDL data
+                    'ldl': round(all_metrics.get('ldl', 0), 1),
+                    'hdl': round(all_metrics.get('hdl', 0), 1),
+                    'vldl': round(all_metrics.get('vldl_estimate', 0), 1),
+                    'total_new': round(all_metrics.get('cholesterol_total_new', 0), 1),
+                    'ldl_hdl_ratio': round(all_metrics.get('ldl_hdl_ratio', 0), 2),
+                    'cardiovascular_risk': all_metrics.get('cardiovascular_risk', 'Unknown'),
+                    'comparison': all_metrics.get('comparison', {})
+                }
+            }
+
+            logger.info(f"Enhanced Predictions: BP={predictions['blood_pressure']['systolic']}/{predictions['blood_pressure']['diastolic']}, "
+                       f"Glucose={predictions['glucose']['value']}, "
+                       f"Cholesterol Total={predictions['cholesterol']['value']}, "
+                       f"LDL={predictions['cholesterol']['ldl']}, HDL={predictions['cholesterol']['hdl']}")
+        else:
+            # Original predictor
+            predictions = predictor.predict_health_metrics(
+                ppg_signal=ppg_signal,
+                demographics=demographics,
+                heart_rate=heart_rate
+            )
+            logger.info(f"ML Health Predictions: BP={predictions['blood_pressure']['systolic']}/{predictions['blood_pressure']['diastolic']}, "
+                       f"Glucose={predictions['glucose']['value']}, Cholesterol={predictions['cholesterol']['value']}")
+
         return jsonify({
             'success': True,
             'predictions': predictions,
@@ -650,6 +694,8 @@ def predict_health():
                 'heart_rate': heart_rate
             },
             'ml_models_used': True,
+            'enhanced_models': use_enhanced,
+            'models_version': 'v3.0-ldl-hdl' if use_enhanced else 'v2.0-real-data',
             'disclaimer': 'Research predictions based on ML models - not for medical use'
         })
         

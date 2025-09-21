@@ -229,19 +229,37 @@
                                 </div>
                             </div>
 
-                            <!-- Cholesterol -->
+                            <!-- Cholesterol (Enhanced) -->
                             <div class="col-md-6">
                                 <div class="prediction-card">
                                     <div class="d-flex align-items-center mb-2">
                                         <i class="fas fa-pills text-info me-2"></i>
                                         <strong>Cholesterol</strong>
                                     </div>
+                                    <!-- Original Total -->
                                     <div class="prediction-value">
                                         <span id="cholesterolValue">--</span>
                                         <small class="text-muted">mg/dL</small>
                                     </div>
                                     <div class="prediction-category">
                                         <span id="cholesterolCategory" class="badge">--</span>
+                                    </div>
+
+                                    <!-- LDL/HDL Breakdown (shown when available) -->
+                                    <div id="cholesterolDetails" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                                        <small class="text-muted">Breakdown:</small>
+                                        <div style="font-size: 0.9em;">
+                                            <div>LDL: <span id="ldlValue" class="fw-bold">--</span> mg/dL</div>
+                                            <div>HDL: <span id="hdlValue" class="fw-bold">--</span> mg/dL</div>
+                                            <div>Ratio: <span id="ldlHdlRatio" class="fw-bold">--</span></div>
+                                            <div>Risk: <span id="cvRiskLdl" class="badge bg-secondary">--</span></div>
+                                        </div>
+
+                                        <!-- Comparison -->
+                                        <div id="cholesterolComparison" style="margin-top: 5px; font-size: 0.85em; color: #666;">
+                                            <small>Total (New): <span id="totalNew">--</span> mg/dL
+                                            <span id="comparisonStatus" class="ms-1"></span></small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

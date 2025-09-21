@@ -1,0 +1,12 @@
+heart_rate
+hrv
+mean_amplitude
+std_amplitude
+mean_width
+std_width
+mean_ai
+std_ai
+stiffness_index
+reflection_index
+age
+sex

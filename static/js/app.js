@@ -449,29 +449,136 @@ class HealthPredictionApp {
         const bp = predictions.blood_pressure;
         document.getElementById('bloodPressureValue').textContent = `${bp.systolic} / ${bp.diastolic}`;
         const bpBadge = document.getElementById('bloodPressureCategory');
-        bpBadge.textContent = bp.category;
-        bpBadge.className = `badge bg-${bp.category.toLowerCase()}`;
+        const bpStatus = bp.status || bp.category || 'Normal';
+        bpBadge.textContent = bpStatus;
+
+        // Safe badge class for blood pressure
+        let bpBadgeClass = 'success';
+        if (bpStatus.toLowerCase().includes('elevated') || bpStatus.toLowerCase().includes('high')) {
+            bpBadgeClass = 'warning';
+        }
+        bpBadge.className = `badge bg-${bpBadgeClass}`;
 
         // Glucose
         const glucose = predictions.glucose;
         document.getElementById('glucoseValue').textContent = glucose.value;
         const glucoseBadge = document.getElementById('glucoseCategory');
-        glucoseBadge.textContent = glucose.category;
-        glucoseBadge.className = `badge bg-${glucose.category.toLowerCase()}`;
+        const glucoseStatus = glucose.status || glucose.category || 'Normal';
+        glucoseBadge.textContent = glucoseStatus;
 
-        // Cholesterol
+        // Safe badge class for glucose
+        let glucoseBadgeClass = 'success';
+        if (glucoseStatus.toLowerCase().includes('elevated') || glucoseStatus.toLowerCase().includes('high')) {
+            glucoseBadgeClass = 'warning';
+        }
+        glucoseBadge.className = `badge bg-${glucoseBadgeClass}`;
+
+        // Cholesterol (with LDL/HDL if available)
         const cholesterol = predictions.cholesterol;
         document.getElementById('cholesterolValue').textContent = cholesterol.value;
         const cholesterolBadge = document.getElementById('cholesterolCategory');
-        cholesterolBadge.textContent = cholesterol.category;
-        cholesterolBadge.className = `badge bg-${cholesterol.category.toLowerCase()}`;
+        const cholesterolStatus = cholesterol.status || cholesterol.category || 'Normal';
+        cholesterolBadge.textContent = cholesterolStatus;
 
-        // Cardiovascular Risk
-        const cvRisk = predictions.cardiovascular_risk;
-        document.getElementById('cvRiskValue').textContent = cvRisk.score;
-        const cvRiskBadge = document.getElementById('cvRiskCategory');
-        cvRiskBadge.textContent = cvRisk.category;
-        cvRiskBadge.className = `badge bg-${cvRisk.category.toLowerCase()}`;
+        // Safe badge class assignment
+        let badgeClass = 'secondary';
+        if (cholesterolStatus) {
+            const statusLower = cholesterolStatus.toLowerCase().replace(/\s+/g, '-');
+            if (statusLower.includes('normal')) badgeClass = 'success';
+            else if (statusLower.includes('borderline')) badgeClass = 'warning';
+            else if (statusLower.includes('high')) badgeClass = 'danger';
+            else if (statusLower.includes('elevated')) badgeClass = 'warning';
+        }
+        cholesterolBadge.className = `badge bg-${badgeClass}`;
+
+        // Check if we have LDL/HDL data (enhanced models)
+        if (cholesterol.ldl && cholesterol.hdl) {
+            document.getElementById('cholesterolDetails').style.display = 'block';
+            document.getElementById('ldlValue').textContent = cholesterol.ldl;
+            document.getElementById('hdlValue').textContent = cholesterol.hdl;
+            document.getElementById('ldlHdlRatio').textContent = cholesterol.ldl_hdl_ratio;
+
+            // Set risk badge color
+            const cvRiskLdl = document.getElementById('cvRiskLdl');
+            cvRiskLdl.textContent = cholesterol.cardiovascular_risk;
+            const riskColors = {
+                'Optimal': 'success',
+                'Low': 'info',
+                'Moderate': 'warning',
+                'High': 'danger'
+            };
+            cvRiskLdl.className = `badge bg-${riskColors[cholesterol.cardiovascular_risk] || 'secondary'}`;
+
+            // Show comparison if available
+            if (cholesterol.total_new) {
+                document.getElementById('totalNew').textContent = cholesterol.total_new;
+
+                // Show validation status
+                if (cholesterol.comparison && cholesterol.comparison.sum_validation) {
+                    const status = cholesterol.comparison.sum_validation;
+                    const statusSpan = document.getElementById('comparisonStatus');
+                    if (status.includes('Match')) {
+                        statusSpan.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+                        statusSpan.title = 'LDL + HDL + VLDL ≈ Total';
+                    } else {
+                        statusSpan.innerHTML = '<i class="fas fa-exclamation-triangle text-warning"></i>';
+                        statusSpan.title = `Difference: ${Math.round(cholesterol.comparison.percentage_difference)}%`;
+                    }
+                }
+            }
+        } else {
+            document.getElementById('cholesterolDetails').style.display = 'none';
+        }
+
+        // Cardiovascular Risk - now calculated from cholesterol ratio
+        if (predictions.cardiovascular_risk) {
+            // Legacy support for old response format
+            const cvRisk = predictions.cardiovascular_risk;
+            document.getElementById('cvRiskValue').textContent = cvRisk.score || '--';
+            const cvRiskBadge = document.getElementById('cvRiskCategory');
+            cvRiskBadge.textContent = cvRisk.category || 'Unknown';
+
+            let riskBadgeClass = 'secondary';
+            if (cvRisk.category) {
+                const riskLower = cvRisk.category.toLowerCase();
+                if (riskLower.includes('low')) riskBadgeClass = 'success';
+                else if (riskLower.includes('moderate')) riskBadgeClass = 'warning';
+                else if (riskLower.includes('high')) riskBadgeClass = 'danger';
+            }
+            cvRiskBadge.className = `badge bg-${riskBadgeClass}`;
+        } else if (predictions.cholesterol && predictions.cholesterol.ldl_hdl_ratio) {
+            // Calculate CV risk from LDL/HDL ratio
+            const ratio = predictions.cholesterol.ldl_hdl_ratio;
+            let riskScore, riskCategory, riskBadgeClass;
+
+            if (ratio < 2.0) {
+                riskScore = 20;
+                riskCategory = 'Low Risk';
+                riskBadgeClass = 'success';
+            } else if (ratio < 2.5) {
+                riskScore = 35;
+                riskCategory = 'Moderate Risk';
+                riskBadgeClass = 'info';
+            } else if (ratio < 3.5) {
+                riskScore = 55;
+                riskCategory = 'Elevated Risk';
+                riskBadgeClass = 'warning';
+            } else {
+                riskScore = 75;
+                riskCategory = 'High Risk';
+                riskBadgeClass = 'danger';
+            }
+
+            document.getElementById('cvRiskValue').textContent = riskScore;
+            const cvRiskBadge = document.getElementById('cvRiskCategory');
+            cvRiskBadge.textContent = riskCategory;
+            cvRiskBadge.className = `badge bg-${riskBadgeClass}`;
+        } else {
+            // No risk data available
+            document.getElementById('cvRiskValue').textContent = '--';
+            document.getElementById('cvRiskCategory').textContent = 'Unknown';
+            document.getElementById('cvRiskCategory').className = 'badge bg-secondary';
+        }
     }
 
     initializeChart() {
