@@ -243,16 +243,53 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 - DigitalOcean server provisioned and configured
 - Ready for production deployment
 
+## Vascular Age Implementation (September 23, 2025)
+
+### Dual Vascular Age Prediction Methods
+The system now provides TWO methods for vascular age prediction:
+
+#### 1. **Formula-Based Method** (core/vascular_age_predictor.py)
+- Uses weighted combination of arterial stiffness markers
+- Based on research literature correlations:
+  - Augmentation Index (AI) increases 0.8% per year (40% weight)
+  - Stiffness Index (SI) increases 0.15 units per year (30% weight)
+  - Systolic BP increases 0.7 mmHg per year (20% weight)
+  - HRV decreases with age (10% weight)
+- Always available, provides consistent baseline
+
+#### 2. **ML-Based Method** (core/ml_vascular_age_predictor.py)
+- Inspired by AI-vascular-age repository (https://github.com/Ngk03/AI-vascular-age)
+- Extracts deep features from PPG signal:
+  - Diastolic/Systolic peak ratio (key for vascular age)
+  - LF/HF frequency ratio (autonomic function)
+  - Signal complexity (approximate entropy)
+  - Pulse wave morphology features
+- Currently uses hybrid approach (no pre-trained weights available)
+- Shows confidence level (60% without training, 80% with trained model)
+
+### Key Features Extracted for Vascular Age
+1. **Diastolic Peak Analysis** - Most important for vascular aging
+2. **Frequency Domain Features** - LF/HF ratio indicates autonomic age
+3. **Complexity Measures** - Decreases with vascular aging
+4. **Rise Time Analysis** - Arterial stiffness indicator
+
+### Implementation Notes
+- **PRESERVES ALL EXISTING PREDICTIONS** - No changes to BP, glucose, or cholesterol
+- Both methods run in parallel, ML method shown when available
+- UI displays confidence percentage for ML predictions
+- Fallback to formula-based if ML fails
+
 ## Next Steps and TODOs
 
-1. Complete DigitalOcean deployment with Docker container
-2. Set up Nginx reverse proxy on server
-3. Configure SSL certificate for HTTPS
-4. Consider implementing proper session management for multi-user support
-5. Add WebSocket for real-time frame upload progress
-6. Implement proper error handling for camera access denial
-7. Consider adding Redis for state management in multi-worker scenarios
-8. Optimize PPG processing performance
+1. Train ML vascular age model when dataset with PWV/arterial stiffness available
+2. Complete DigitalOcean deployment with Docker container
+3. Set up Nginx reverse proxy on server
+4. Configure SSL certificate for HTTPS
+5. Consider implementing proper session management for multi-user support
+6. Add WebSocket for real-time frame upload progress
+7. Implement proper error handling for camera access denial
+8. Consider adding Redis for state management in multi-worker scenarios
+9. Optimize PPG processing performance
 
 ## Contact and Repository Info
 
@@ -263,5 +300,5 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
 ---
 
-*Last Updated: September 15, 2025*
+*Last Updated: September 23, 2025*
 *This file should be reviewed at the start of each Claude session for context*

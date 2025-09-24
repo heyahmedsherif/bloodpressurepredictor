@@ -8,10 +8,14 @@ class HealthPredictionApp {
         this.recording = false;
         this.processing = false;
         this.frameCount = 0;
-        this.maxFrames = 150; // 7.5 seconds at 20 FPS for better signal quality
+        this.maxFrames = 150; // 5 seconds at 30 FPS for better signal quality
         this.frameInterval = null;
         this.ppgChart = null;
-        
+
+        // Session tracking for measurement stabilization
+        this.sessionId = localStorage.getItem('ppg_session_id') || null;
+        this.measurementCount = 0;
+
         this.initializeElements();
         this.bindEvents();
         this.initializeChart();
@@ -140,9 +144,9 @@ class HealthPredictionApp {
             this.canvas.style.display = 'none';
 
             // Start frame processing
-            // Capture at 20 FPS for reliable unique frame capture
-            // 20 FPS balances quality with browser capture capabilities
-            this.frameInterval = setInterval(() => this.processFrame(), 1000/20); // 20 FPS
+            // Capture at 30 FPS to match camera capabilities
+            // Apple Studio Display typically runs at 30 FPS
+            this.frameInterval = setInterval(() => this.processFrame(), 1000/30); // 30 FPS
 
             this.hideLoading();
             this.showSuccess('Recording started! Keep your face in view.');
@@ -388,7 +392,8 @@ class HealthPredictionApp {
                 gender: document.getElementById('patientGender')?.value || 'Male',
                 height: parseInt(document.getElementById('patientHeight')?.value || '173'),
                 weight: parseInt(document.getElementById('patientWeight')?.value || '83'),
-                heart_rate: this.lastHeartRate || 75
+                heart_rate: this.lastHeartRate || 75,
+                session_id: this.sessionId  // Include session ID for measurement stabilization
             };
 
             console.log('Sending demographics:', demographics);
@@ -409,11 +414,38 @@ class HealthPredictionApp {
                 throw new Error(result.error || 'Unknown error');
             }
 
+            // Store session ID if provided for measurement stabilization
+            if (result.stabilization_info && result.stabilization_info.session_id) {
+                this.sessionId = result.stabilization_info.session_id;
+                localStorage.setItem('ppg_session_id', this.sessionId);
+                this.measurementCount = result.stabilization_info.measurement_count || 0;
+                console.log(`Session ${this.sessionId}: ${this.measurementCount} measurements`);
+            }
+
             // Display health predictions
             console.log('Displaying predictions...');
             this.displayHealthPredictions(result.predictions);
             this.healthPredictions.style.display = 'block';
             this.healthPredictions.scrollIntoView({ behavior: 'smooth' });
+
+            // Show stabilization message if provided
+            if (result.stabilization_message) {
+                const stabMessage = document.createElement('div');
+                stabMessage.className = 'alert alert-info mt-2';
+                stabMessage.textContent = result.stabilization_message;
+                this.healthPredictions.insertBefore(stabMessage, this.healthPredictions.firstChild);
+            }
+
+            // Check if retry is suggested due to poor signal quality
+            if (result.retry_suggested) {
+                setTimeout(() => {
+                    if (confirm(result.retry_message + '\n\nWould you like to retry the measurement?')) {
+                        // Reset and restart measurement
+                        this.reset();
+                        this.startRecording();
+                    }
+                }, 1000);
+            }
 
             console.log('Hiding loading modal...');
             this.hideLoading();
@@ -445,9 +477,41 @@ class HealthPredictionApp {
     }
 
     displayHealthPredictions(predictions) {
-        // Blood pressure
+        // Display signal quality if available
+        if (predictions.signal_quality) {
+            const quality = predictions.signal_quality;
+            const qualityHtml = `
+                <div class="alert alert-${quality.level === 'excellent' ? 'success' : quality.level === 'good' ? 'info' : quality.level === 'acceptable' ? 'warning' : 'danger'} mt-2">
+                    <h6>Signal Quality: ${quality.level.toUpperCase()}</h6>
+                    <div class="d-flex justify-content-between">
+                        <span>Quality Score: ${(quality.score * 100).toFixed(0)}%</span>
+                        <span>Confidence: ${quality.confidence}%</span>
+                    </div>
+                    ${quality.is_acceptable ?
+                        '<small class="text-success">✓ Signal quality acceptable for analysis</small>' :
+                        '<small class="text-danger">⚠ Poor signal quality - results may be less accurate</small>'}
+                </div>
+            `;
+
+            // Add quality info at the top of predictions
+            const predictionsContainer = document.getElementById('healthPredictions');
+            const existingQuality = predictionsContainer.querySelector('.signal-quality-alert');
+            if (existingQuality) {
+                existingQuality.remove();
+            }
+            const qualityDiv = document.createElement('div');
+            qualityDiv.className = 'signal-quality-alert';
+            qualityDiv.innerHTML = qualityHtml;
+            predictionsContainer.insertBefore(qualityDiv, predictionsContainer.firstChild);
+        }
+
+        // Blood pressure with confidence
         const bp = predictions.blood_pressure;
-        document.getElementById('bloodPressureValue').textContent = `${bp.systolic} / ${bp.diastolic}`;
+        let bpText = `${bp.systolic} / ${bp.diastolic}`;
+        if (bp.confidence) {
+            bpText += ` <small class="text-muted">(${bp.confidence}% conf.)</small>`;
+        }
+        document.getElementById('bloodPressureValue').innerHTML = bpText;
         const bpBadge = document.getElementById('bloodPressureCategory');
         const bpStatus = bp.status || bp.category || 'Normal';
         bpBadge.textContent = bpStatus;
@@ -579,6 +643,74 @@ class HealthPredictionApp {
             document.getElementById('cvRiskCategory').textContent = 'Unknown';
             document.getElementById('cvRiskCategory').className = 'badge bg-secondary';
         }
+
+        // Vascular Age Display (if available)
+        if (predictions.vascular_age) {
+            document.getElementById('vascularAgeResult').style.display = 'block';
+            const vAge = predictions.vascular_age;
+
+            // Main vascular age display - prefer formula-based (more accurate)
+            // ML is experimental without proper training data
+            const displayAge = vAge.vascular_age || vAge.vascular_age_ml;
+            document.getElementById('vascularAge').textContent = displayAge;
+            document.getElementById('chronoAge').textContent = vAge.chronological_age + ' years';
+
+            // Age difference with color coding
+            const ageDiff = vAge.age_difference;
+            const ageDiffElement = document.getElementById('ageDifference');
+            if (ageDiff > 0) {
+                ageDiffElement.textContent = `+${ageDiff} years`;
+                ageDiffElement.className = 'fw-bold text-danger';
+            } else if (ageDiff < 0) {
+                ageDiffElement.textContent = `${ageDiff} years`;
+                ageDiffElement.className = 'fw-bold text-success';
+            } else {
+                ageDiffElement.textContent = 'Same as chronological';
+                ageDiffElement.className = 'fw-bold text-info';
+            }
+
+            // Status badge - show ML status if available with confidence
+            const statusBadge = document.getElementById('vascularStatus');
+            if (vAge.vascular_age_ml && vAge.confidence) {
+                const confidencePct = Math.round(vAge.confidence * 100);
+                statusBadge.textContent = `${vAge.status_ml || vAge.status} (${confidencePct}% confidence)`;
+            } else {
+                statusBadge.textContent = vAge.status;
+            }
+            let statusClass = 'bg-secondary';
+            if (vAge.status === 'Excellent' || vAge.status === 'Good') {
+                statusClass = 'bg-success';
+            } else if (vAge.status === 'Normal') {
+                statusClass = 'bg-info';
+            } else if (vAge.status === 'Accelerated Aging') {
+                statusClass = 'bg-warning';
+            } else if (vAge.status === 'Significant Aging') {
+                statusClass = 'bg-danger';
+            }
+            statusBadge.className = `badge fs-6 ${statusClass}`;
+
+            // Vascular health risk level
+            document.getElementById('vascularHealth').textContent = vAge.risk_level;
+            document.getElementById('vascularHealth').className =
+                vAge.risk_level === 'Low' ? 'fw-bold text-success' :
+                vAge.risk_level === 'Moderate' ? 'fw-bold text-warning' :
+                'fw-bold text-danger';
+
+            // Health score progress bar
+            const healthScore = vAge.health_score;
+            const healthBar = document.getElementById('healthScoreBar');
+            healthBar.style.width = healthScore + '%';
+            document.getElementById('healthScoreText').textContent = `${healthScore}/100`;
+
+            // Progress bar color based on score
+            if (healthScore >= 70) {
+                healthBar.className = 'progress-bar bg-success';
+            } else if (healthScore >= 50) {
+                healthBar.className = 'progress-bar bg-warning';
+            } else {
+                healthBar.className = 'progress-bar bg-danger';
+            }
+        }
     }
 
     initializeChart() {
@@ -626,12 +758,44 @@ class HealthPredictionApp {
     startNewSession() {
         // Stop the camera first to ensure clean reset
         this.stopCamera();
-        
+
         // Reset all states
         this.resetRecording();
+
+        // Hide all results including vascular age
         this.ppgResults.style.display = 'none';
         this.healthPredictions.style.display = 'none';
+        if (document.getElementById('vascularAgeResult')) {
+            document.getElementById('vascularAgeResult').style.display = 'none';
+        }
         this.lastHeartRate = null;
+
+        // Clear all displayed values
+        document.getElementById('heartRate').textContent = '-- BPM';
+        document.getElementById('framesProcessed').textContent = '--';
+        document.getElementById('recordingDuration').textContent = '-- s';
+
+        // Clear health prediction values
+        document.getElementById('bloodPressureValue').textContent = '-- / --';
+        document.getElementById('glucoseValue').textContent = '--';
+        document.getElementById('cholesterolValue').textContent = '--';
+        document.getElementById('cvRiskValue').textContent = '--';
+
+        // Clear vascular age values
+        if (document.getElementById('vascularAge')) {
+            document.getElementById('vascularAge').textContent = '--';
+            document.getElementById('chronoAge').textContent = '-- years';
+            document.getElementById('ageDifference').textContent = '--';
+            document.getElementById('vascularHealth').textContent = '--';
+            document.getElementById('healthScoreBar').style.width = '0%';
+            document.getElementById('healthScoreText').textContent = '0/100';
+            document.getElementById('vascularStatus').textContent = '--';
+        }
+
+        // Hide cholesterol details
+        if (document.getElementById('cholesterolDetails')) {
+            document.getElementById('cholesterolDetails').style.display = 'none';
+        }
 
         // Clear chart
         this.ppgChart.data.labels = [];
@@ -658,7 +822,7 @@ class HealthPredictionApp {
         this.startRecordingBtn.style.display = 'block';
         this.recordingControls.style.display = 'none';
         this.recordingProgress.style.width = '0%';
-        this.frameCounter.textContent = '0 / 150 frames';
+        this.frameCounter.textContent = `0 / ${this.maxFrames} frames`;
     }
 
     showLoading(title, subtitle) {

@@ -6,7 +6,7 @@ A modern web interface for camera-based health prediction using PPG extraction.
 Supports blood pressure, glucose, cholesterol, and cardiovascular risk prediction.
 """
 
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, session
 import json
 import logging
 import threading
@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 import base64
 import io
+import uuid
 
 # Try to import optional dependencies
 try:
@@ -77,7 +78,9 @@ except ImportError as e:
     SIMPLE_PPG_AVAILABLE = False
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
+app.config['SECRET_KEY'] = 'ppg-health-secret-key-' + str(uuid.uuid4())
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -89,6 +92,9 @@ recording_active = False
 frames_buffer = []
 ppg_buffer = []
 
+# Session-based measurement stabilizers
+measurement_stabilizers = {}
+
 class CameraProcessor:
     def __init__(self):
         self.recording = False
@@ -97,8 +103,14 @@ class CameraProcessor:
         self.ppg_values = []
         self.face_detector = None
         self.face_cascade = None
-        self.max_frames = 150  # 7.5 seconds at 20 FPS for better PPG detection
-        self.target_fps = 20.0  # Optimal balance between quality and browser capabilities
+        # Camera configuration - Extended recording for better accuracy
+        # Longer recording = more heartbeats captured = better averaging
+        self.target_fps = 30.0  # Most webcams max at 30 FPS
+        self.recording_duration = 10  # Increased from 5 to 10 seconds for better accuracy
+        self.max_frames = int(self.target_fps * self.recording_duration)  # 10 seconds = 300 frames
+
+        # Log the FPS configuration
+        logger.info(f"Camera configured for {self.target_fps} FPS, {self.recording_duration}s recording, max frames: {self.max_frames}")
 
         # Initialize face detection - prefer MediaPipe over Haar Cascade
         if MEDIAPIPE_AVAILABLE:
@@ -602,9 +614,10 @@ def predict_health():
         # Try enhanced predictor first, fallback to original
         try:
             from core.enhanced_ml_predictor import EnhancedMLHealthPredictor
+            from core.measurement_stabilizer import MeasurementStabilizer
             predictor = EnhancedMLHealthPredictor()
             use_enhanced = True
-            logger.info("Using enhanced predictor with LDL/HDL models")
+            logger.info("Using enhanced predictor with measurement stabilization")
         except Exception as e:
             logger.info(f"Enhanced predictor not available: {e}, using original")
             from core.ml_health_predictor import MLHealthPredictor
@@ -643,12 +656,72 @@ def predict_health():
             # Enhanced predictor with LDL/HDL breakdown
             all_metrics = predictor.predict_all_metrics(ppg_signal, demographics)
 
+            # Apply measurement stabilization
+            session_id = data.get('session_id')
+            if not session_id:
+                # Generate new session ID if not provided
+                session_id = str(uuid.uuid4())
+                logger.info(f"New session created: {session_id}")
+
+            # Get or create stabilizer for this session
+            if session_id not in measurement_stabilizers:
+                measurement_stabilizers[session_id] = MeasurementStabilizer(history_size=3)
+                logger.info(f"Created new stabilizer for session {session_id}")
+
+            stabilizer = measurement_stabilizers[session_id]
+
+            # Add current measurement and get stabilized values
+            stabilized_metrics = stabilizer.add_measurement(all_metrics)
+
+            # Update metrics with stabilized values
+            if stabilized_metrics.get('heart_rate'):
+                if 'heart_rate_enhanced' in all_metrics:
+                    all_metrics['heart_rate_enhanced']['heart_rate'] = stabilized_metrics['heart_rate']
+                    logger.info(f"Stabilized HR: {stabilized_metrics['heart_rate']:.1f}")
+
+            if stabilized_metrics.get('systolic'):
+                all_metrics['systolic'] = stabilized_metrics['systolic']
+                logger.info(f"Stabilized systolic: {stabilized_metrics['systolic']:.1f}")
+
+            if stabilized_metrics.get('diastolic'):
+                all_metrics['diastolic'] = stabilized_metrics['diastolic']
+                logger.info(f"Stabilized diastolic: {stabilized_metrics['diastolic']:.1f}")
+
+            if stabilized_metrics.get('glucose'):
+                all_metrics['glucose'] = stabilized_metrics['glucose']
+
+            if stabilized_metrics.get('cholesterol'):
+                all_metrics['cholesterol_total_original'] = stabilized_metrics['cholesterol']
+
+            if stabilized_metrics.get('vascular_age'):
+                all_metrics['vascular_age'] = stabilized_metrics['vascular_age']
+                logger.info(f"Stabilized vascular age: {stabilized_metrics['vascular_age']:.1f}")
+
+            # Add stabilization info to response
+            all_metrics['stabilization_info'] = {
+                'session_id': session_id,
+                'measurement_count': stabilizer.get_measurement_count(),
+                'confidence': stabilizer.get_confidence(),
+                'should_retry': stabilizer.should_retry()
+            }
+
+            # Check signal quality and implement retry logic
+            if 'signal_quality' in all_metrics and not bool(all_metrics['signal_quality']['is_acceptable']):
+                logger.warning(f"Signal quality poor ({all_metrics['signal_quality']['level']}), suggesting retry")
+                # Add retry suggestion to response
+                all_metrics['retry_suggested'] = True
+                all_metrics['retry_message'] = ("Poor signal quality detected. For more accurate results, please:\n"
+                                                "1. Ensure good lighting\n"
+                                                "2. Remain still during recording\n"
+                                                "3. Keep face centered in camera")
+
             # Format for frontend
             predictions = {
                 'blood_pressure': {
                     'systolic': round(all_metrics['systolic'], 1),
                     'diastolic': round(all_metrics['diastolic'], 1),
-                    'status': 'Normal' if all_metrics['systolic'] < 130 else 'Elevated'
+                    'status': 'Normal' if all_metrics['systolic'] < 130 else 'Elevated',
+                    'confidence': all_metrics.get('bp_confidence', 50)
                 },
                 'glucose': {
                     'value': round(all_metrics['glucose'], 1),
@@ -668,10 +741,52 @@ def predict_health():
                 }
             }
 
+            # Add signal quality metrics
+            if 'signal_quality' in all_metrics:
+                sq = all_metrics['signal_quality']
+                # Convert numpy types to Python native types for JSON serialization
+                predictions['signal_quality'] = {
+                    'score': float(sq['score']),
+                    'level': sq['level'],
+                    'confidence': float(sq['confidence']),
+                    'metrics': {k: float(v) for k, v in sq['metrics'].items()},
+                    'is_acceptable': bool(sq['is_acceptable'])  # Convert numpy bool_ to Python bool
+                }
+
+            # Add enhanced heart rate if available
+            if 'heart_rate_enhanced' in all_metrics:
+                predictions['heart_rate'] = {
+                    'value': all_metrics['heart_rate_enhanced'].get('heart_rate', heart_rate),
+                    'confidence': all_metrics['heart_rate_enhanced'].get('confidence', 50),
+                    'method': all_metrics['heart_rate_enhanced'].get('method', 'standard'),
+                    'variability': all_metrics['heart_rate_enhanced'].get('variability', 0)
+                }
+
+            # Add vascular age if available (formula-based)
+            if 'vascular_age_data' in all_metrics:
+                predictions['vascular_age'] = {
+                    'vascular_age': round(all_metrics['vascular_age_data']['vascular_age'], 1),
+                    'chronological_age': all_metrics['vascular_age_data']['chronological_age'],
+                    'age_difference': round(all_metrics['vascular_age_data']['age_difference'], 1),
+                    'status': all_metrics['vascular_age_data']['status'],
+                    'risk_level': all_metrics['vascular_age_data']['risk_level'],
+                    'health_score': round(all_metrics['vascular_age_data']['health_score'], 1),
+                    'method': 'Formula-based'
+                }
+
+            # Add ML-based vascular age if available
+            if 'vascular_age_ml_data' in all_metrics:
+                predictions['vascular_age']['vascular_age_ml'] = round(all_metrics['vascular_age_ml_data'].get('vascular_age_ml', 0), 1)
+                predictions['vascular_age']['age_difference_ml'] = round(all_metrics['vascular_age_ml_data'].get('age_difference_ml', 0), 1)
+                predictions['vascular_age']['status_ml'] = all_metrics['vascular_age_ml_data'].get('status_ml', 'Unknown')
+                predictions['vascular_age']['confidence'] = all_metrics['vascular_age_ml_data'].get('confidence', 0)
+                predictions['vascular_age']['ml_method'] = all_metrics['vascular_age_ml_data'].get('method', 'Hybrid ML')
+
             logger.info(f"Enhanced Predictions: BP={predictions['blood_pressure']['systolic']}/{predictions['blood_pressure']['diastolic']}, "
                        f"Glucose={predictions['glucose']['value']}, "
                        f"Cholesterol Total={predictions['cholesterol']['value']}, "
-                       f"LDL={predictions['cholesterol']['ldl']}, HDL={predictions['cholesterol']['hdl']}")
+                       f"LDL={predictions['cholesterol']['ldl']}, HDL={predictions['cholesterol']['hdl']}, "
+                       f"Vascular Age={predictions.get('vascular_age', {}).get('vascular_age', 'N/A')}")
         else:
             # Original predictor
             predictions = predictor.predict_health_metrics(
@@ -682,7 +797,7 @@ def predict_health():
             logger.info(f"ML Health Predictions: BP={predictions['blood_pressure']['systolic']}/{predictions['blood_pressure']['diastolic']}, "
                        f"Glucose={predictions['glucose']['value']}, Cholesterol={predictions['cholesterol']['value']}")
 
-        return jsonify({
+        response_data = {
             'success': True,
             'predictions': predictions,
             'patient_info': {
@@ -697,7 +812,22 @@ def predict_health():
             'enhanced_models': use_enhanced,
             'models_version': 'v3.0-ldl-hdl' if use_enhanced else 'v2.0-real-data',
             'disclaimer': 'Research predictions based on ML models - not for medical use'
-        })
+        }
+
+        # Add retry suggestion if signal quality was poor
+        if use_enhanced and 'retry_suggested' in all_metrics:
+            response_data['retry_suggested'] = all_metrics['retry_suggested']
+            response_data['retry_message'] = all_metrics['retry_message']
+
+        # Add stabilization info if available
+        if use_enhanced and 'stabilization_info' in all_metrics:
+            response_data['stabilization_info'] = all_metrics['stabilization_info']
+
+            # Add message about measurement averaging
+            if all_metrics['stabilization_info']['measurement_count'] > 1:
+                response_data['stabilization_message'] = f"Results averaged over {all_metrics['stabilization_info']['measurement_count']} measurements for improved accuracy."
+
+        return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"Error in predict_health: {e}")

@@ -173,9 +173,18 @@ class CholesterolFeatureExtractor:
 
         if rise_times:
             # Stiffness index inversely related to rise time
-            features['stiffness_index'] = 1.0 / np.mean(rise_times) * 10  # Scale factor
+            # But bounded to prevent extreme values
+            mean_rise_time = np.mean(rise_times)
+            # Normal rise time is 0.1-0.3 seconds
+            # SI ranges from 5 (young/flexible) to 15 (old/stiff)
+            if mean_rise_time > 0:
+                raw_si = 1.0 / mean_rise_time
+                # Map to reasonable range: fast rise (0.1s) -> SI=10, slow rise (0.3s) -> SI=5
+                features['stiffness_index'] = np.clip(raw_si, 3, 15)
+            else:
+                features['stiffness_index'] = 8.0
         else:
-            features['stiffness_index'] = 10.0
+            features['stiffness_index'] = 8.0
 
         # Reflection Index - combined vascular indicator
         features['reflection_index'] = features['mean_ai'] * features['stiffness_index']
@@ -197,10 +206,10 @@ class CholesterolFeatureExtractor:
             'std_amplitude': 0.1,
             'mean_width': 0.3,
             'std_width': 0.05,
-            'mean_ai': 0.4,
+            'mean_ai': 0.35,
             'std_ai': 0.1,
-            'stiffness_index': 10.0,
-            'reflection_index': 4.0,
+            'stiffness_index': 7.5,
+            'reflection_index': 2.6,
 
             # Demographics (defaults)
             'age': 45,

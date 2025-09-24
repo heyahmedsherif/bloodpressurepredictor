@@ -32,7 +32,7 @@ class SimplifiedRPPGProcessor:
     """Simplified rPPG processor using MediaPipe or Haar Cascade for face detection"""
 
     def __init__(self):
-        self.buffer_size = 250
+        self.buffer_size = 450  # Increased from 250 to 450 frames (15 seconds at 30 FPS)
         self.data_buffer = []
         self.times = []
         self.fps = 30  # Default FPS
