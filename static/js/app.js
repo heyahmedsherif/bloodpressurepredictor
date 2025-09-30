@@ -8,7 +8,7 @@ class HealthPredictionApp {
         this.recording = false;
         this.processing = false;
         this.frameCount = 0;
-        this.maxFrames = 150; // 5 seconds at 30 FPS for better signal quality
+        this.maxFrames = 200; // 6.7 seconds at 30 FPS - optimal balance of accuracy and UX
         this.frameInterval = null;
         this.ppgChart = null;
 

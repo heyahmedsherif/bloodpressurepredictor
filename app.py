@@ -106,8 +106,8 @@ class CameraProcessor:
         # Camera configuration - Extended recording for better accuracy
         # Longer recording = more heartbeats captured = better averaging
         self.target_fps = 30.0  # Most webcams max at 30 FPS
-        self.recording_duration = 10  # Increased from 5 to 10 seconds for better accuracy
-        self.max_frames = int(self.target_fps * self.recording_duration)  # 10 seconds = 300 frames
+        self.recording_duration = 6.7  # Optimal balance of accuracy and user experience
+        self.max_frames = 200  # 200 frames at 30 FPS = 6.7 seconds
 
         # Log the FPS configuration
         logger.info(f"Camera configured for {self.target_fps} FPS, {self.recording_duration}s recording, max frames: {self.max_frames}")
