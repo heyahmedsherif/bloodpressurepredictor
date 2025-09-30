@@ -23,26 +23,50 @@ except ImportError:
     MEDIAPIPE_AVAILABLE = False
     print("MediaPipe not installed. Falling back to Haar Cascade.")
 
+# Set up logger first
+logger = logging.getLogger(__name__)
+
 # Add webcam-pulse-detector to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'external', 'webcam-pulse-detector'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'external', 'webcam-pulse-detector', 'lib'))
 
 # Add pyVHR to path for advanced rPPG methods
+# Try multiple approaches to locate pyVHR for better cross-platform compatibility
+PYVHR_AVAILABLE = False
+
+# Approach 1: Relative to current file
 pyVHR_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'external', 'pyVHR')
 if os.path.exists(pyVHR_path):
     sys.path.insert(0, pyVHR_path)
     PYVHR_AVAILABLE = True
-    try:
-        # Import pyVHR methods - we'll implement simplified versions if import fails
-        pass  # We'll implement the methods directly
-    except ImportError as e:
-        logger.warning(f"Could not import pyVHR methods: {e}")
-        PYVHR_AVAILABLE = False
+    logger.info(f"pyVHR found at: {pyVHR_path}")
 else:
-    PYVHR_AVAILABLE = False
-    logger.info("pyVHR not found in external directory")
+    # Approach 2: Absolute path from project root
+    try:
+        # Get absolute path to the current file
+        current_file = os.path.abspath(__file__)
+        project_root = os.path.dirname(os.path.dirname(current_file))
+        pyVHR_path = os.path.join(project_root, 'external', 'pyVHR')
 
-logger = logging.getLogger(__name__)
+        if os.path.exists(pyVHR_path):
+            sys.path.insert(0, pyVHR_path)
+            PYVHR_AVAILABLE = True
+            logger.info(f"pyVHR found at absolute path: {pyVHR_path}")
+    except Exception as e:
+        logger.warning(f"Could not determine absolute path: {e}")
+
+if not PYVHR_AVAILABLE:
+    # Approach 3: Check if pyVHR is in the Python path already
+    try:
+        import pyVHR
+        PYVHR_AVAILABLE = True
+        logger.info("pyVHR found in Python path")
+    except ImportError:
+        # Provide helpful debug info
+        expected_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'external', 'pyVHR')
+        logger.info(f"pyVHR not found - advanced methods will use simplified implementations")
+        logger.info(f"Expected pyVHR location: {expected_path}")
+        logger.info(f"If pyVHR is needed, ensure it exists at the path above or is installed via pip")
 
 class SimplifiedRPPGProcessor:
     """Simplified rPPG processor using MediaPipe or Haar Cascade for face detection"""
