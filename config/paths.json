@@ -1,0 +1,40 @@
+{
+  "external_modules": {
+    "pyVHR": {
+      "relative_path": "external/pyVHR",
+      "required": false,
+      "fallback_pip": "pyVHR",
+      "env_variable": "PYVHR_PATH",
+      "description": "Advanced rPPG methods library"
+    },
+    "webcam-pulse-detector": {
+      "relative_path": "external/webcam-pulse-detector",
+      "required": false,
+      "subdirectories": ["lib"],
+      "description": "Basic PPG extraction library"
+    }
+  },
+  "project_markers": [
+    "requirements.txt",
+    "setup.py",
+    "pyproject.toml",
+    ".git",
+    "app.py",
+    "README.md"
+  ],
+  "path_resolution_strategies": {
+    "enabled": [
+      "relative_to_project",
+      "absolute_path",
+      "environment_variable",
+      "python_path",
+      "site_packages"
+    ],
+    "priority_order": [1, 2, 3, 4, 5]
+  },
+  "logging": {
+    "verbose_path_resolution": false,
+    "log_failed_attempts": true,
+    "diagnostic_on_failure": true
+  }
+}
