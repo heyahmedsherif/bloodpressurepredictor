@@ -427,24 +427,85 @@ Modified Framingham Risk Score adapted for PPG measurements:
 - Added `test_rppg_methods.py` - Comprehensive unit tests
 - Added `analyze_real_data_issues.py` - Diagnostic tools
 
-**Commit**: `18d16c3` pushed to `camera-testing` branch
+**Commits**:
+- `18d16c3` - Initial enhancement with 7 methods
+- `dfd4c58` - Adaptive filtering implementation
+- `608d871` - pyVHR path resolution fixes
+- `10bd15d` - Path resolution system with unit tests
+- `8cf4f9c` - Frame optimization to 200
+
+## December 30, 2024 - Path Resolution & Frame Optimization Updates
+
+### 1. Robust Path Resolution System
+**Problem**: External users reported "pyVHR path not working" when running app in different environments.
+
+**Solution Implemented**: Comprehensive path resolution system with multiple fallback strategies:
+
+#### Path Resolution Features (`core/path_utils.py`):
+- **PathResolver Class**: Centralized path resolution with 5 fallback strategies
+  1. Relative to project root (primary)
+  2. Absolute path resolution
+  3. Environment variable override (`PYVHR_PATH`)
+  4. Python path (if installed via pip)
+  5. Site-packages location
+- **Caching**: Validated paths cached for performance
+- **Diagnostics**: Built-in diagnostic information for troubleshooting
+- **Cross-platform**: Works on Windows, Linux, macOS, Docker, cloud
+
+#### Testing & Documentation:
+- **Unit Tests** (`test_path_resolution.py`): 14 comprehensive tests, 100% passing
+- **Configuration** (`config/paths.json`): Centralized module configuration
+- **Best Practices** (`PATH_RESOLUTION_BEST_PRACTICES.md`): Complete guide
+
+**Benefits**:
+- Prevents path issues across different deployment environments
+- Clear error messages with solutions
+- Environment variable override for custom installations
+- Works in Docker, cloud platforms, and virtual environments
+
+### 2. Frame Count Optimization
+**Problem**: Mismatch between Python (300 frames) and JavaScript (150 frames) configurations.
+
+**Analysis & Solution**: Optimized to **200 frames (6.7 seconds)**:
+- **Previous**: 300 frames (10s) - too long for users
+- **Optimal**: 200 frames (6.7s) - best balance
+- **Benefits**:
+  - Captures 4-7 heartbeat cycles (sufficient for all methods)
+  - Good signal quality for 7-method ensemble
+  - Reasonable wait time for users
+  - Better than 150 frames (too short) but faster than 300
+
+**Configuration Updated**:
+- Python: `recording_duration = 6.7`, `max_frames = 200`
+- JavaScript: `maxFrames = 200`
+- Both synchronized - no more mismatch
 
 ### Testing Instructions
-1. Run app: `PORT=5001 python app.py`
-2. Access: http://localhost:5001
-3. Record 10-second video for best results
-4. Check console logs for method comparison
+1. Run app: `PORT=5002 python app.py` (or any available port)
+2. Access: http://localhost:5002
+3. Record will auto-stop after 200 frames (~6.7 seconds)
+4. Check path resolution: `python test_path_resolution.py`
+5. Test path utilities: `python core/path_utils.py`
+
+### Files Added/Modified (Dec 30, 2024)
+- `core/path_utils.py` - Path resolution utilities
+- `test_path_resolution.py` - Comprehensive unit tests
+- `config/paths.json` - Module configuration
+- `PATH_RESOLUTION_BEST_PRACTICES.md` - Documentation
+- `core/rppg_integration.py` - Updated to use new path system
+- `app.py` - Frame count optimized to 200
+- `static/js/app.js` - Frame count synchronized
 
 ## Contact and Repository Info
 
 - GitHub: https://github.com/heyahmedsherif/bloodpressurepredictor
 - Branch for testing: `camera-testing`
-- Latest commit: `18d16c3` (Dec 28, 2024)
+- Latest commit: `8cf4f9c` (Dec 30, 2024)
 - Docker image: `ppg-health-app:latest`
 - Deployment Scripts: `deploy-to-digitalocean.sh`, `digitalocean-deployment.md`
 - PPG-BP Database: https://figshare.com/articles/dataset/PPG-BP_Database_zip/5459299
 
 ---
 
-*Last Updated: December 28, 2024*
+*Last Updated: December 30, 2024*
 *This file should be reviewed at the start of each Claude session for context*
